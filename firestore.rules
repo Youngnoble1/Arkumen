@@ -1,0 +1,95 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {uid}
+// Fields:
+//   - uid: string (required) - Unique identifier
+//   - username: string (required) - Display name
+//   - points: number (required) - Total Royalty Points
+//   - highestScore: number - Max score in one game
+//   - favoriteCategory: string - Most played category
+//   - warriorTitle: string - AI-generated title
+//   - createdAt: timestamp - Creation time
+//   - lastDailyChallengeDate: string - Date of last daily challenge
+//   - dailyChallengeStreak: number - Current streak
+//   - badges: list - List of badges
+//
+// Collection: games
+// Document ID: {gameId}
+// Fields:
+//   - uid: string (required) - User ID
+//   - score: number (required) - Game score
+//   - streak: number - Max streak
+//   - category: string (required) - Game category
+//   - grade: string (required) - AI grade (S-D)
+//   - message: string - AI comment
+//   - mode: string (required) - Game mode
+//   - createdAt: string - Game time
+//
+// Collection: daily_challenges
+// Document ID: {date}
+// Fields:
+//   - date: string (required) - Date of challenge
+//   - theme: string (required) - Theme
+//   - questions: list (required) - List of questions
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'username', 'points']) &&
+             data.uid == request.auth.uid &&
+             data.username is string && data.username.size() > 0 && data.username.size() < 50 &&
+             data.points is number && data.points >= 0 &&
+             (!('lastDailyChallengeDate' in data) || data.lastDailyChallengeDate is string) &&
+             (!('dailyChallengeStreak' in data) || data.dailyChallengeStreak is number) &&
+             (!('badges' in data) || data.badges is list);
+    }
+    
+    function isValidGame(data) {
+      return data.keys().hasAll(['uid', 'score', 'category', 'grade', 'mode']) &&
+             data.uid == request.auth.uid &&
+             data.score is number &&
+             data.category is string &&
+             data.mode is string &&
+             data.grade is string && data.grade.size() <= 10;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{uid} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(uid) && isValidUser(request.resource.data);
+      allow update: if isOwner(uid) && isValidUser(request.resource.data);
+    }
+    
+    match /games/{gameId} {
+      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid);
+      allow create: if isAuthenticated() && isValidGame(request.resource.data);
+    }
+
+    match /daily_challenges/{date} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated(); // For now, let users generate it if missing
+    }
+  }
+}

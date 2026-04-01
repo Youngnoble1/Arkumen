@@ -1,0 +1,74 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user statistics and profile information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Unique identifier for the user." },
+        "username": { "type": "string", "description": "Display name of the user." },
+        "points": { "type": "integer", "description": "Total Royalty Points earned." },
+        "highestScore": { "type": "integer", "description": "Highest score achieved in a single game." },
+        "favoriteCategory": { "type": "string", "description": "The category most played by the user." },
+        "warriorTitle": { "type": "string", "description": "The epic title earned by the user." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the profile was created." },
+        "lastDailyChallengeDate": { "type": "string", "description": "The date of the last completed daily challenge." },
+        "dailyChallengeStreak": { "type": "integer", "description": "Number of consecutive days the challenge was completed." },
+        "badges": { "type": "array", "items": { "type": "string" }, "description": "List of badges earned by the user." }
+      },
+      "required": ["uid", "username", "points"]
+    },
+    "GameSession": {
+      "title": "Game Session",
+      "description": "Stores the results of a completed trivia game.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The user who played the game." },
+        "score": { "type": "integer", "description": "Score achieved in the game." },
+        "streak": { "type": "integer", "description": "Maximum streak achieved." },
+        "category": { "type": "string", "description": "The trivia category." },
+        "grade": { "type": "string", "description": "The grade (S, A, B, C, D) assigned by AI." },
+        "message": { "type": "string", "description": "AI-generated encouraging comment." },
+        "mode": { "type": "string", "description": "The game mode (NORMAL, DAILY)." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the game was played." }
+      },
+      "required": ["uid", "score", "category", "grade"]
+    },
+    "DailyChallenge": {
+      "title": "Daily Challenge",
+      "description": "Stores the questions for a specific day's challenge.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "description": "The date of the challenge (e.g., 2026-04-01)." },
+        "theme": { "type": "string", "description": "The theme of the day's challenge." },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": { "type": "string" },
+              "options": { "type": "array", "items": { "type": "string" } },
+              "correctAnswer": { "type": "integer" },
+              "explanation": { "type": "string" }
+            }
+          }
+        }
+      },
+      "required": ["date", "theme", "questions"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profile document."
+    },
+    "/games/{gameId}": {
+      "schema": "GameSession",
+      "description": "Individual game session records."
+    },
+    "/daily_challenges/{date}": {
+      "schema": "DailyChallenge",
+      "description": "Daily challenge questions."
+    }
+  }
+}
