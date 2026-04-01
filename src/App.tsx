@@ -129,6 +129,17 @@ const TUTORIAL_CONTENT = {
   }
 };
 
+const BADGE_DEFINITIONS = [
+  { id: 'novice', name: 'Novice Warrior', icon: '🛡️', desc: 'Complete your first ascension' },
+  { id: 'veteran', name: 'Veteran Warrior', icon: '⚔️', desc: 'Complete 10 ascensions' },
+  { id: 'legend', name: 'Legendary Warrior', icon: '🔥', desc: 'Complete 50 ascensions' },
+  { id: 'high_scorer', name: 'High Scorer', icon: '💎', desc: 'Score over 10,000 in a single game' },
+  { id: 'streak_master', name: 'Streak Master', icon: '⚡', desc: 'Achieve a 15-question streak' },
+  { id: 'daily_devotee', name: 'Daily Devotee', icon: '📅', desc: 'Complete 3 daily challenges' },
+  { id: 'category_master', name: 'Category Master', icon: '🎓', desc: 'Reach 50,000 total points' },
+  { id: 'divine_scholar', name: 'Divine Scholar', icon: '📜', desc: 'Achieve Grade S in any mode' },
+];
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -143,6 +154,7 @@ export default function App() {
   const [gameMode, setGameMode] = useState<GameMode>('CLASSIC');
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(30);
   const [showExplanation, setShowExplanation] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -206,17 +218,25 @@ export default function App() {
   // Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
-      setUser(u);
-      if (u) {
-        await fetchProfile(u.uid);
-        fetchHistory(u.uid);
-        fetchLeaderboard();
-        fetchDailyChallenge();
-        setGameState('LOBBY');
-      } else {
-        setGameState('LANDING');
+      try {
+        setAuthError(null);
+        setUser(u);
+        if (u) {
+          setLoading(true); // Re-show loading while fetching profile
+          await fetchProfile(u.uid);
+          fetchHistory(u.uid);
+          fetchLeaderboard();
+          fetchDailyChallenge();
+          setGameState('LOBBY');
+        } else {
+          setGameState('LANDING');
+        }
+      } catch (error) {
+        console.error("Auth Listener Error:", error);
+        setAuthError("Failed to synchronize with the heavens. Please try again.");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
     return unsubscribe;
   }, []);
@@ -269,6 +289,8 @@ export default function App() {
     );
     return onSnapshot(q, (snapshot) => {
       setHistory(snapshot.docs.map(doc => doc.data()));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'games');
     });
   };
 
@@ -280,6 +302,8 @@ export default function App() {
     );
     return onSnapshot(q, (snapshot) => {
       setLeaderboard(snapshot.docs.map(doc => doc.data() as UserProfile));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'users');
     });
   };
 
@@ -476,6 +500,20 @@ export default function App() {
         let dailyStreak = profile.dailyChallengeStreak || 0;
         let badges = profile.badges || [];
 
+        // Check for new badges
+        const newBadges = [...badges];
+        
+        // Game count badges (we'll estimate from history + 1)
+        const totalGames = history.length + 1;
+        if (totalGames >= 1 && !newBadges.includes('novice')) newBadges.push('novice');
+        if (totalGames >= 10 && !newBadges.includes('veteran')) newBadges.push('veteran');
+        if (totalGames >= 50 && !newBadges.includes('legend')) newBadges.push('legend');
+        
+        if (score >= 10000 && !newBadges.includes('high_scorer')) newBadges.push('high_scorer');
+        if (maxStreak >= 15 && !newBadges.includes('streak_master')) newBadges.push('streak_master');
+        if (newPoints >= 50000 && !newBadges.includes('category_master')) newBadges.push('category_master');
+        if (result.grade === 'S' && !newBadges.includes('divine_scholar')) newBadges.push('divine_scholar');
+
         if (gameMode === 'DAILY') {
           const today = new Date().toISOString().split('T')[0];
           const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
@@ -487,11 +525,13 @@ export default function App() {
           newPoints += bonusPoints;
           lastDailyDate = today;
 
-          // Special badges
-          if (dailyStreak === 7 && !badges.includes("7-Day Streak")) {
-            badges = [...badges, "7-Day Streak"];
-          } else if (dailyStreak === 30 && !badges.includes("Monthly Master")) {
-            badges = [...badges, "Monthly Master"];
+          if (dailyStreak >= 3 && !newBadges.includes('daily_devotee')) newBadges.push('daily_devotee');
+          
+          // Legacy badges (keeping them for compatibility)
+          if (dailyStreak === 7 && !newBadges.includes("7-Day Streak")) {
+            newBadges.push("7-Day Streak");
+          } else if (dailyStreak === 30 && !newBadges.includes("Monthly Master")) {
+            newBadges.push("Monthly Master");
           }
         }
         
@@ -508,7 +548,7 @@ export default function App() {
           warriorTitle: newTitle,
           lastDailyChallengeDate: lastDailyDate,
           dailyChallengeStreak: dailyStreak,
-          badges: badges
+          badges: newBadges
         };
 
         try {
@@ -590,14 +630,27 @@ export default function App() {
                   </div>
                 </div>
               </div>
-              <h1 className="font-display text-6xl md:text-8xl mb-2 gold-gradient tracking-[0.3em]">ARKUMEN</h1>
-              <p className="text-slate-400 uppercase tracking-[0.5em] text-xs mb-12">The Divine Revelations Quiz Game</p>
+              <h1 className="font-display text-5xl md:text-8xl mb-2 gold-gradient tracking-[0.1em] sm:tracking-[0.3em] px-4">ARKUMEN</h1>
+              <p className="text-slate-400 uppercase tracking-[0.2em] sm:tracking-[0.5em] text-[8px] sm:text-xs mb-12 px-4 max-w-full">The Divine Revelations Quiz Game</p>
+              
+              {authError && (
+                <div className="mb-8 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm max-w-md flex flex-col items-center gap-3">
+                  <p className="text-center">{authError}</p>
+                  <button 
+                    onClick={() => window.location.reload()}
+                    className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors"
+                  >
+                    Retry Connection
+                  </button>
+                </div>
+              )}
+
               <button 
                 onClick={handleLogin}
-                className="group relative px-16 py-5 bg-transparent border border-arkumen-gold/50 overflow-hidden transition-all hover:pulse-gold rounded-sm"
+                className="group relative px-8 sm:px-16 py-4 sm:py-5 bg-transparent border border-arkumen-gold/50 overflow-hidden transition-all hover:pulse-gold rounded-sm"
               >
                 <div className="absolute inset-0 bg-arkumen-gold translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
-                <span className="relative z-10 font-display text-xl tracking-[0.3em] group-hover:text-black transition-colors">ENTER ARENA</span>
+                <span className="relative z-10 font-display text-lg sm:text-xl tracking-[0.1em] sm:tracking-[0.3em] group-hover:text-black transition-colors">ENTER ARENA</span>
               </button>
             </motion.div>
           </motion.div>
@@ -743,6 +796,35 @@ export default function App() {
                   <StatCard label="Highest Score" value={profile.highestScore.toLocaleString()} />
                   <StatCard label="Daily Streak" value={`${profile.dailyChallengeStreak || 0} Days`} />
                   <StatCard label="Badges" value={`${profile.badges?.length || 0}`} />
+                </div>
+
+                <div className="premium-card p-6">
+                  <h3 className="font-display text-xl mb-6 flex items-center gap-3">
+                    <Sparkles className="text-arkumen-gold" /> Divine Achievements
+                  </h3>
+                  <div className="grid grid-cols-4 gap-4">
+                    {BADGE_DEFINITIONS.map((badge) => {
+                      const isEarned = profile.badges?.includes(badge.id);
+                      return (
+                        <div 
+                          key={badge.id} 
+                          className={cn(
+                            "flex flex-col items-center gap-2 p-2 rounded-xl transition-all group relative",
+                            isEarned ? "bg-arkumen-gold/10 border border-arkumen-gold/30" : "bg-slate-800/50 opacity-30 grayscale"
+                          )}
+                        >
+                          <span className="text-2xl">{badge.icon}</span>
+                          <span className="text-[8px] uppercase font-bold text-center leading-tight">{badge.name}</span>
+                          
+                          {/* Tooltip */}
+                          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-32 p-2 bg-slate-900 border border-slate-700 rounded-lg text-[10px] text-center opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                            <p className="font-bold text-arkumen-gold mb-1">{badge.name}</p>
+                            <p className="text-slate-400">{badge.desc}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="premium-card p-6">

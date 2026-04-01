@@ -16,6 +16,7 @@ export interface UserProfile {
   lastDailyChallengeDate?: string;
   dailyChallengeStreak?: number;
   badges?: string[];
+  role?: 'user' | 'admin';
 }
 
 export interface DailyChallenge {
