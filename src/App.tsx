@@ -32,7 +32,11 @@ import {
   Youtube,
   Video,
   X,
-  Send
+  Send,
+  HelpCircle,
+  Info,
+  ArrowRight,
+  Play
 } from 'lucide-react';
 import { auth, db, googleProvider, handleFirestoreError, OperationType } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
@@ -57,6 +61,74 @@ const LADDER_VALUES = [
   300000000, 400000000, 500000000, 750000000, 1000000000, 2000000000
 ];
 
+const TUTORIAL_CONTENT = {
+  'CLASSIC': {
+    title: "Classic Quiz",
+    subtitle: "The Foundation of Faith",
+    description: "A deep dive into the divine revelations. Take your time to absorb the knowledge.",
+    mechanics: [
+      "15 questions per arena",
+      "No time limit per question",
+      "Focus on accuracy and understanding",
+      "Earn Royalty Points for every correct answer",
+      "Unlock higher ranks as you master the source"
+    ],
+    reward: "Standard Royalty Points + Rank Progress"
+  },
+  'BLITZ': {
+    title: "Timed Blitz",
+    subtitle: "The Speed of Spirit",
+    description: "Test your intuition and rapid recall under pressure. Speed is of the essence.",
+    mechanics: [
+      "10 questions per arena",
+      "10 seconds per question",
+      "Rapid-fire revelations",
+      "Bonus points for quick answers",
+      "Test your spiritual reflexes"
+    ],
+    reward: "Bonus Royalty Points for Speed"
+  },
+  'SURVIVAL': {
+    title: "Warrior's Path",
+    subtitle: "The Narrow Gate",
+    description: "One wrong answer ends your journey. How many revelations can you survive?",
+    mechanics: [
+      "Endless questions",
+      "Single life - one mistake and it's over",
+      "Increasing difficulty as you progress",
+      "Leaderboard focus",
+      "Prove your unyielding focus"
+    ],
+    reward: "Survival Multiplier + Global Leaderboard"
+  },
+  'MULTIPLAYER': {
+    title: "Multiplayer Arena",
+    subtitle: "The Clash of Crowns",
+    description: "Battle other Warriors in real-time. Prove who is the most enlightened.",
+    mechanics: [
+      "Real-time competition",
+      "Synchronized questions",
+      "Highest score wins the arena",
+      "Wager Royalty Points (coming soon)",
+      "Global ranking impact"
+    ],
+    reward: "Arena Glory + Opponent's Respect"
+  },
+  'DAILY': {
+    title: "Daily Revelation",
+    subtitle: "The Daily Bread",
+    description: "A unique set of questions every 24 hours. Maintain your spiritual discipline.",
+    mechanics: [
+      "10 unique questions daily",
+      "Resets every 24 hours",
+      "Streak bonuses for consecutive days",
+      "Special badges for consistency",
+      "Exclusive daily themes"
+    ],
+    reward: "5000+ Royalty Points + Streak Bonus"
+  }
+};
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -78,6 +150,7 @@ export default function App() {
   const [leaderboard, setLeaderboard] = useState<UserProfile[]>([]);
   const [showSourceModal, setShowSourceModal] = useState(false);
   const [showSpecialistModal, setShowSpecialistModal] = useState(false);
+  const [showTutorial, setShowTutorial] = useState<keyof typeof TUTORIAL_CONTENT | null>(null);
   const [sourceType, setSourceType] = useState<'NOTES' | 'YOUTUBE' | 'VIDEO'>('NOTES');
   const [sourceInput, setSourceInput] = useState("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -101,20 +174,33 @@ export default function App() {
   const [roomId, setRoomId] = useState("");
 
   useEffect(() => {
-    const s = io();
-    setSocket(s);
-    s.on("room-update", (players) => setMultiplayers(players));
-    s.on("game-started", (qs) => {
-      setQuestions(qs);
-      setCurrentQuestionIndex(0);
-      setScore(0);
-      setStreak(0);
-      setMaxStreak(0);
-      setTimeLeft(30);
-      setGameMode('MULTIPLAYER');
-      setGameState('GAME');
-    });
-    return () => { s.disconnect(); };
+    // Only attempt socket connection if we're not on a static hosting environment that doesn't support it
+    // or if we explicitly want to try. 
+    try {
+      const s = io({
+        reconnectionAttempts: 3,
+        timeout: 5000,
+        transports: ['websocket', 'polling']
+      });
+      setSocket(s);
+      s.on("connect_error", (err) => {
+        console.warn("Multiplayer server connection failed. Multiplayer will be disabled.", err.message);
+      });
+      s.on("room-update", (players) => setMultiplayers(players));
+      s.on("game-started", (qs) => {
+        setQuestions(qs);
+        setCurrentQuestionIndex(0);
+        setScore(0);
+        setStreak(0);
+        setMaxStreak(0);
+        setTimeLeft(30);
+        setGameMode('MULTIPLAYER');
+        setGameState('GAME');
+      });
+      return () => { s.disconnect(); };
+    } catch (e) {
+      console.warn("Socket.io initialization failed:", e);
+    }
   }, []);
 
   // Auth Listener
@@ -548,6 +634,7 @@ export default function App() {
                         desc={dailyChallenge.theme}
                         badge={profile.lastDailyChallengeDate === dailyChallenge.date ? "COMPLETED" : "BONUS XP"}
                         onClick={startDailyChallenge}
+                        onInfoClick={() => setShowTutorial('DAILY')}
                       />
                     )}
                     <ChallengeCard 
@@ -555,18 +642,21 @@ export default function App() {
                       title="Classic Quiz"
                       desc="36 levels of divine revelations."
                       onClick={() => startNewGame('CLASSIC')}
+                      onInfoClick={() => setShowTutorial('CLASSIC')}
                     />
                     <ChallengeCard 
                       icon={<Clock className="text-arkumen-gold" />}
                       title="Timed Blitz"
                       desc="2 minutes. Prove your mastery."
                       onClick={() => startNewGame('BLITZ')}
+                      onInfoClick={() => setShowTutorial('BLITZ')}
                     />
                     <ChallengeCard 
                       icon={<Heart className="text-arkumen-gold" />}
                       title="Warrior's Path"
                       desc="One life. Defy the fall."
                       onClick={() => startNewGame('SURVIVAL')}
+                      onInfoClick={() => setShowTutorial('SURVIVAL')}
                     />
                     <ChallengeCard 
                       icon={<BookOpen className="text-arkumen-gold" />}
@@ -580,6 +670,7 @@ export default function App() {
                       desc="Clash with other Warriors."
                       badge="LIVE"
                       onClick={() => setGameState('MULTIPLAYER_LOBBY')}
+                      onInfoClick={() => setShowTutorial('MULTIPLAYER')}
                     />
                   </div>
                 </section>
@@ -1067,27 +1158,132 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Tutorial Modal */}
+      <AnimatePresence>
+        {showTutorial && (
+          <TutorialModal 
+            mode={showTutorial}
+            onClose={() => setShowTutorial(null)}
+            onStart={() => {
+              const mode = showTutorial;
+              setShowTutorial(null);
+              if (mode === 'DAILY') startDailyChallenge();
+              else if (mode === 'MULTIPLAYER') setGameState('MULTIPLAYER_LOBBY');
+              else if (mode === 'CLASSIC') startNewGame('CLASSIC');
+              else if (mode === 'BLITZ') startNewGame('BLITZ');
+              else if (mode === 'SURVIVAL') startNewGame('SURVIVAL');
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function ChallengeCard({ icon, title, desc, badge, onClick }: { icon: React.ReactNode, title: string, desc: string, badge?: string, onClick: () => void }) {
+function ChallengeCard({ icon, title, desc, badge, onClick, onInfoClick }: { icon: React.ReactNode, title: string, desc: string, badge?: string, onClick: () => void, onInfoClick?: () => void }) {
   return (
-    <button 
-      onClick={onClick}
-      className="w-full premium-card p-6 flex items-center gap-6 group"
-    >
-      <div className="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center group-hover:bg-arkumen-gold/10 transition-colors">
-        {icon}
-      </div>
-      <div className="flex-1 text-left">
-        <div className="flex items-center gap-2 mb-1">
-          <h3 className="font-display text-lg tracking-wide">{title}</h3>
-          {badge && <span className="px-2 py-0.5 bg-arkumen-blue text-[8px] font-bold rounded uppercase">{badge}</span>}
+    <div className="relative group">
+      <button 
+        onClick={onClick}
+        className="w-full premium-card p-6 flex items-center gap-6 group-hover:border-arkumen-gold/50 transition-all"
+      >
+        <div className="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center group-hover:bg-arkumen-gold/10 transition-colors">
+          {icon}
         </div>
-        <p className="text-slate-500 text-sm">{desc}</p>
-      </div>
-    </button>
+        <div className="flex-1 text-left">
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="font-display text-lg tracking-wide">{title}</h3>
+            {badge && <span className="px-2 py-0.5 bg-arkumen-blue text-[8px] font-bold rounded uppercase">{badge}</span>}
+          </div>
+          <p className="text-slate-500 text-sm">{desc}</p>
+        </div>
+      </button>
+      {onInfoClick && (
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            onInfoClick();
+          }}
+          className="absolute top-4 right-4 p-2 text-slate-500 hover:text-arkumen-gold transition-colors"
+          title="How to play"
+        >
+          <HelpCircle size={18} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function TutorialModal({ mode, onClose, onStart }: { mode: keyof typeof TUTORIAL_CONTENT, onClose: () => void, onStart: () => void }) {
+  const content = TUTORIAL_CONTENT[mode];
+  
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="w-full max-w-lg bg-slate-900 border border-arkumen-gold/30 rounded-3xl overflow-hidden shadow-2xl"
+      >
+        <div className="relative h-48 bg-arkumen-gold/5 flex items-center justify-center overflow-hidden">
+          <div className="absolute inset-0 opacity-20">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-arkumen-gold/20 via-transparent to-transparent animate-pulse" />
+          </div>
+          <div className="relative z-10 text-center">
+            <div className="w-20 h-20 rounded-full bg-slate-900 border-2 border-arkumen-gold flex items-center justify-center mx-auto mb-4 shadow-[0_0_30px_rgba(212,175,55,0.3)]">
+              <Play className="w-8 h-8 text-arkumen-gold fill-arkumen-gold/20" />
+            </div>
+            <h2 className="text-2xl font-display gold-gradient uppercase tracking-widest">{content.title}</h2>
+            <p className="text-arkumen-gold/60 text-[10px] uppercase tracking-[0.2em]">{content.subtitle}</p>
+          </div>
+          <button onClick={onClose} className="absolute top-4 right-4 p-2 text-slate-500 hover:text-white transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-8 space-y-6">
+          <p className="text-slate-300 text-center italic">"{content.description}"</p>
+          
+          <div className="space-y-4">
+            <h4 className="text-[10px] uppercase tracking-widest text-arkumen-gold font-bold">Arena Mechanics</h4>
+            <div className="space-y-3">
+              {content.mechanics.map((m, i) => (
+                <div key={i} className="flex items-start gap-3 text-sm text-slate-400">
+                  <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-arkumen-gold shrink-0" />
+                  <span>{m}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="p-4 bg-slate-800/50 rounded-2xl border border-slate-700/50 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1">Potential Rewards</p>
+              <p className="text-sm font-bold text-arkumen-gold">{content.reward}</p>
+            </div>
+            <Trophy className="text-arkumen-gold/40" size={24} />
+          </div>
+
+          <div className="flex gap-4 pt-4">
+            <button 
+              onClick={onClose}
+              className="flex-1 py-4 rounded-2xl border border-slate-700 font-bold text-slate-400 hover:bg-slate-800 transition-colors"
+            >
+              Close
+            </button>
+            <button 
+              onClick={() => {
+                onClose();
+                onStart();
+              }}
+              className="flex-1 py-4 rounded-2xl bg-arkumen-gold text-black font-bold hover:shadow-[0_0_20px_rgba(212,175,55,0.4)] transition-all flex items-center justify-center gap-2"
+            >
+              Enter Arena <ArrowRight size={18} />
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
   );
 }
 

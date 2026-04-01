@@ -1,7 +1,11 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Question, DailyChallenge } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey) {
+  console.warn("GEMINI_API_KEY is missing. AI features will not work.");
+}
+const ai = new GoogleGenAI({ apiKey: apiKey || "MISSING_KEY" });
 
 const SOURCE_TEXT = `
 Adache...Ark:
