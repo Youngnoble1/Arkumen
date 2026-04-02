@@ -41,7 +41,7 @@ import {
 import { auth, db, googleProvider, handleFirestoreError, OperationType } from './firebase';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, addDoc, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { generateQuestions, generateWarriorTitle, analyzePerformance, generateDailyChallenge } from './services/geminiService';
+import { generateQuestions, generateArkerTitle, analyzePerformance, generateDailyChallenge } from './services/geminiService';
 import { Question, UserProfile, GameResult, DailyChallenge } from './types';
 import { cn } from './lib/utils';
 import ReactMarkdown from 'react-markdown';
@@ -49,7 +49,7 @@ import { io, Socket } from 'socket.io-client';
 
 type GameState = 'LANDING' | 'LOBBY' | 'LOADING' | 'GAME' | 'RESULT' | 'MULTIPLAYER_LOBBY';
 type Tab = 'HOME' | 'RANKS' | 'PROFILE' | 'SETTINGS';
-type GameMode = 'CLASSIC' | 'BLITZ' | 'SURVIVAL' | 'SPECIALIST' | 'MULTIPLAYER' | 'ACADEMIC' | 'DAILY';
+type GameMode = 'CLASSIC' | 'BLITZ' | 'SURVIVAL' | 'MULTIPLAYER' | 'ACADEMIC' | 'DAILY';
 
 const LADDER_VALUES = [
   100, 200, 300, 500, 1000, 
@@ -89,7 +89,7 @@ const TUTORIAL_CONTENT = {
     reward: "Bonus Royalty Points for Speed"
   },
   'SURVIVAL': {
-    title: "Warrior's Path",
+    title: "Arker's Path",
     subtitle: "The Narrow Gate",
     description: "One wrong answer ends your journey. How many revelations can you survive?",
     mechanics: [
@@ -104,7 +104,7 @@ const TUTORIAL_CONTENT = {
   'MULTIPLAYER': {
     title: "Multiplayer Arena",
     subtitle: "The Clash of Crowns",
-    description: "Battle other Warriors in real-time. Prove who is the most enlightened.",
+    description: "Compete with other Arkers in real-time. Prove who is the most enlightened.",
     mechanics: [
       "Real-time competition",
       "Synchronized questions",
@@ -130,9 +130,9 @@ const TUTORIAL_CONTENT = {
 };
 
 const BADGE_DEFINITIONS = [
-  { id: 'novice', name: 'Novice Warrior', icon: '🛡️', desc: 'Complete your first ascension' },
-  { id: 'veteran', name: 'Veteran Warrior', icon: '⚔️', desc: 'Complete 10 ascensions' },
-  { id: 'legend', name: 'Legendary Warrior', icon: '🔥', desc: 'Complete 50 ascensions' },
+  { id: 'novice', name: 'Novice Arker', icon: '🛡️', desc: 'Complete your first ascension' },
+  { id: 'veteran', name: 'Veteran Arker', icon: '⚔️', desc: 'Complete 10 ascensions' },
+  { id: 'legend', name: 'Legendary Arker', icon: '🔥', desc: 'Complete 50 ascensions' },
   { id: 'high_scorer', name: 'High Scorer', icon: '💎', desc: 'Score over 10,000 in a single game' },
   { id: 'streak_master', name: 'Streak Master', icon: '⚡', desc: 'Achieve a 15-question streak' },
   { id: 'daily_devotee', name: 'Daily Devotee', icon: '📅', desc: 'Complete 3 daily challenges' },
@@ -161,13 +161,13 @@ export default function App() {
   const [history, setHistory] = useState<any[]>([]);
   const [leaderboard, setLeaderboard] = useState<UserProfile[]>([]);
   const [showSourceModal, setShowSourceModal] = useState(false);
-  const [showSpecialistModal, setShowSpecialistModal] = useState(false);
   const [showTutorial, setShowTutorial] = useState<keyof typeof TUTORIAL_CONTENT | null>(null);
   const [sourceType, setSourceType] = useState<'NOTES' | 'YOUTUBE' | 'VIDEO'>('NOTES');
   const [sourceInput, setSourceInput] = useState("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [dailyChallenge, setDailyChallenge] = useState<DailyChallenge | null>(null);
   const [dailyChallengeLoading, setDailyChallengeLoading] = useState(false);
+  const [selectedDifficulty, setSelectedDifficulty] = useState<'Easy' | 'Medium' | 'Hard'>('Easy');
 
   // Sounds
   const correctSound = useRef<HTMLAudioElement | null>(null);
@@ -265,11 +265,13 @@ export default function App() {
         const isArchitect = auth.currentUser?.email === "nonsookoli757@gmail.com";
         const newProfile: UserProfile = {
           uid,
-          username: auth.currentUser?.displayName || 'Warrior',
+          username: auth.currentUser?.displayName || 'Arker',
           points: 0,
           highestScore: 0,
           favoriteCategory: 'General',
-          warriorTitle: isArchitect ? 'The Architect' : 'The Seeker',
+          arkerTitle: isArchitect ? 'The Architect' : 'The Seeker',
+          rank: 'Initiate',
+          level: 1,
           createdAt: new Date().toISOString()
         };
         await setDoc(docRef, newProfile);
@@ -354,7 +356,7 @@ export default function App() {
         return;
       }
 
-      q = await generateQuestions(category, mode === 'CLASSIC' ? 36 : 15, 'Medium');
+      q = await generateQuestions(category, mode === 'CLASSIC' ? 36 : 15, selectedDifficulty);
       setQuestions(q);
       setCurrentQuestionIndex(0);
       setScore(0);
@@ -373,7 +375,7 @@ export default function App() {
     
     const today = new Date().toISOString().split('T')[0];
     if (profile.lastDailyChallengeDate === today) {
-      alert("You have already completed today's challenge, Warrior!");
+      alert("You have already completed today's challenge, Arker!");
       return;
     }
 
@@ -495,10 +497,22 @@ export default function App() {
       if (profile) {
         let newPoints = profile.points + score;
         const newHighest = Math.max(profile.highestScore, score);
-        let newTitle = profile.warriorTitle;
+        let newTitle = profile.arkerTitle;
         let lastDailyDate = profile.lastDailyChallengeDate;
         let dailyStreak = profile.dailyChallengeStreak || 0;
         let badges = profile.badges || [];
+        let newLevel = profile.level || 1;
+        let newRank = profile.rank || 'Initiate';
+
+        // Calculate Level and Rank based on points
+        newLevel = Math.floor(Math.sqrt(newPoints / 100)) + 1;
+        
+        const ranks = [
+          'Initiate', 'Seeker', 'Disciple', 'Guardian', 'Sentinel', 
+          'Master', 'Grand Master', 'Elder', 'Legend', 'Eternal'
+        ];
+        const rankIndex = Math.min(Math.floor(newLevel / 5), ranks.length - 1);
+        newRank = ranks[rankIndex];
 
         // Check for new badges
         const newBadges = [...badges];
@@ -538,14 +552,16 @@ export default function App() {
         if (auth.currentUser?.email === "nonsookoli757@gmail.com") {
           newTitle = "The Architect";
         } else if (score > profile.highestScore && score > 5000) {
-          newTitle = await generateWarriorTitle(profile.username, newPoints, newHighest, selectedCategory, auth.currentUser?.email || undefined);
+          newTitle = await generateArkerTitle(profile.username, newPoints, newHighest, selectedCategory, auth.currentUser?.email || undefined);
         }
 
         const updatedProfile = {
           ...profile,
           points: newPoints,
           highestScore: newHighest,
-          warriorTitle: newTitle,
+          arkerTitle: newTitle,
+          rank: newRank,
+          level: newLevel,
           lastDailyChallengeDate: lastDailyDate,
           dailyChallengeStreak: dailyStreak,
           badges: newBadges
@@ -678,6 +694,24 @@ export default function App() {
                 </header>
 
                 <section>
+                  <h2 className="text-arkumen-gold/60 font-display uppercase tracking-widest text-[10px] mb-4">Select Difficulty</h2>
+                  <div className="flex gap-2 mb-8">
+                    {(['Easy', 'Medium', 'Hard'] as const).map((diff) => (
+                      <button
+                        key={diff}
+                        onClick={() => setSelectedDifficulty(diff)}
+                        className={cn(
+                          "flex-1 py-3 rounded-xl border font-bold transition-all",
+                          selectedDifficulty === diff 
+                            ? "bg-arkumen-gold text-black border-arkumen-gold shadow-[0_0_15px_rgba(212,175,55,0.3)]" 
+                            : "bg-slate-800/50 border-slate-700 text-slate-400 hover:border-arkumen-gold/50"
+                        )}
+                      >
+                        {diff}
+                      </button>
+                    ))}
+                  </div>
+
                   <h2 className="text-arkumen-gold/60 font-display uppercase tracking-widest text-[10px] mb-6">Active Arenas</h2>
                   <div className="space-y-4">
                     {dailyChallenge && (
@@ -706,21 +740,15 @@ export default function App() {
                     />
                     <ChallengeCard 
                       icon={<Heart className="text-arkumen-gold" />}
-                      title="Warrior's Path"
+                      title="Arker's Path"
                       desc="One life. Defy the fall."
                       onClick={() => startNewGame('SURVIVAL')}
                       onInfoClick={() => setShowTutorial('SURVIVAL')}
                     />
                     <ChallengeCard 
-                      icon={<BookOpen className="text-arkumen-gold" />}
-                      title="Niche Specialist"
-                      desc="Master a specific revelation."
-                      onClick={() => setShowSpecialistModal(true)}
-                    />
-                    <ChallengeCard 
                       icon={<Users className="text-arkumen-gold" />}
                       title="Multiplayer Arena"
-                      desc="Clash with other Warriors."
+                      desc="Compete with other Arkers."
                       badge="LIVE"
                       onClick={() => setGameState('MULTIPLAYER_LOBBY')}
                       onInfoClick={() => setShowTutorial('MULTIPLAYER')}
@@ -743,7 +771,7 @@ export default function App() {
                 <div className="text-center">
                   <Crown className="w-16 h-16 text-arkumen-gold mx-auto mb-4" />
                   <h2 className="text-3xl font-display gold-gradient">Hall of Legends</h2>
-                  <p className="text-slate-500 text-xs uppercase tracking-widest">The Top 20 Warriors</p>
+                  <p className="text-slate-500 text-xs uppercase tracking-widest">The Top 20 Arkers</p>
                 </div>
 
                 <div className="space-y-3">
@@ -762,7 +790,12 @@ export default function App() {
                       </div>
                       <div className="flex-1">
                         <p className="font-bold">{player.username}</p>
-                        <p className="text-[10px] text-slate-500 uppercase tracking-tighter">{player.warriorTitle}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-[10px] text-slate-500 uppercase tracking-tighter">{player.arkerTitle}</p>
+                          <span className="text-[8px] px-1.5 py-0.5 bg-arkumen-gold/10 text-arkumen-gold rounded-full border border-arkumen-gold/20">
+                            {player.rank || 'Initiate'}
+                          </span>
+                        </div>
                       </div>
                       <div className="text-right">
                         <p className="font-display text-arkumen-gold">{player.points.toLocaleString()}</p>
@@ -783,24 +816,36 @@ export default function App() {
                     </div>
                   </div>
                   <h2 className="text-3xl font-display gold-gradient">{profile.username}</h2>
-                  <p className={cn(
-                    "italic uppercase tracking-[0.3em] text-xs",
-                    profile.warriorTitle === "The Architect" ? "font-display text-arkumen-gold-light text-sm" : "text-arkumen-gold/60"
-                  )}>
-                    {profile.warriorTitle}
-                  </p>
+                  <div className="flex flex-col items-center gap-1">
+                    <p className={cn(
+                      "uppercase tracking-[0.3em] text-xs",
+                      profile.arkerTitle === "The Architect" 
+                        ? "font-display text-arkumen-gold text-xl font-bold not-italic tracking-[0.2em] uppercase" 
+                        : "text-arkumen-gold/60 italic"
+                    )}>
+                      {profile.arkerTitle}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="px-3 py-1 bg-arkumen-gold/10 border border-arkumen-gold/30 rounded-full text-[10px] font-bold text-arkumen-gold uppercase tracking-widest">
+                        Rank: {profile.rank || 'Initiate'}
+                      </span>
+                      <span className="px-3 py-1 bg-arkumen-blue/10 border border-arkumen-blue/30 rounded-full text-[10px] font-bold text-arkumen-blue uppercase tracking-widest">
+                        Level: {profile.level || 1}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <StatCard label="Royalty Points" value={profile.points.toLocaleString()} />
                   <StatCard label="Highest Score" value={profile.highestScore.toLocaleString()} />
                   <StatCard label="Daily Streak" value={`${profile.dailyChallengeStreak || 0} Days`} />
-                  <StatCard label="Badges" value={`${profile.badges?.length || 0}`} />
+                  <StatCard label="Badges & Achievements" value={`${profile.badges?.length || 0}`} />
                 </div>
 
                 <div className="premium-card p-6">
                   <h3 className="font-display text-xl mb-6 flex items-center gap-3">
-                    <Sparkles className="text-arkumen-gold" /> Divine Achievements
+                    <Sparkles className="text-arkumen-gold" /> Badges & Achievements
                   </h3>
                   <div className="grid grid-cols-4 gap-4">
                     {BADGE_DEFINITIONS.map((badge) => {
@@ -857,7 +902,7 @@ export default function App() {
               <div className="space-y-8 py-8">
                 <div className="text-center">
                   <Settings className="w-16 h-16 text-arkumen-gold mx-auto mb-4" />
-                  <h2 className="text-3xl font-display gold-gradient">Warrior Settings</h2>
+                  <h2 className="text-3xl font-display gold-gradient">Arker Settings</h2>
                   <p className="text-slate-500 text-xs uppercase tracking-widest">Configure your experience</p>
                 </div>
 
@@ -999,11 +1044,11 @@ export default function App() {
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mt-8"
+                    className="mt-8 w-full max-w-full"
                   >
-                    <div className="premium-card p-8 bg-slate-900/80 border-arkumen-gold/40">
+                    <div className="premium-card p-6 md:p-8 bg-slate-900/80 border-arkumen-gold/40 overflow-hidden break-words">
                       <p className="text-arkumen-gold font-display text-xs uppercase tracking-widest mb-4">The Revelation</p>
-                      <div className="text-lg text-slate-300 italic leading-relaxed">
+                      <div className="text-base md:text-lg text-slate-300 italic leading-relaxed">
                         <ReactMarkdown>{questions[currentQuestionIndex].explanation}</ReactMarkdown>
                       </div>
                       <button
@@ -1123,50 +1168,6 @@ export default function App() {
           <NavItem icon={<Settings size={24} />} label="SETTINGS" active={activeTab === 'SETTINGS'} onClick={() => setActiveTab('SETTINGS')} />
         </nav>
       )}
-
-      {/* Specialist Modal */}
-      <AnimatePresence>
-        {showSpecialistModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowSpecialistModal(false)}
-              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl"
-            >
-              <div className="flex justify-between items-center mb-8">
-                <h3 className="text-2xl font-display gold-gradient">Specialist Niche</h3>
-                <button onClick={() => setShowSpecialistModal(false)} className="text-slate-500 hover:text-white">
-                  <X size={24} />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 mb-8">
-                {['Spiritual Truths', 'Metaphysics', 'Divine Hierarchy', 'Ancient History', 'Zoe Science', 'The Three Elijahs', 'Lord Adam', 'Mother Eve'].map((niche) => (
-                  <button
-                    key={niche}
-                    onClick={() => {
-                      setShowSpecialistModal(false);
-                      startNewGame('SPECIALIST', niche);
-                    }}
-                    className="p-4 bg-slate-800 border border-slate-700 rounded-xl text-xs font-bold hover:border-arkumen-gold transition-all"
-                  >
-                    {niche}
-                  </button>
-                ))}
-              </div>
-              <p className="text-center text-[10px] text-slate-500 uppercase tracking-widest">Select your area of expertise</p>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Source Modal */}
       <AnimatePresence>

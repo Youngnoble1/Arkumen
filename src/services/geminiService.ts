@@ -67,11 +67,11 @@ A TAKE HOME:
 WHAT IS THE IMAGE OF THE HEAVENLY?
 This question came from 1st Corinthians 15:49 and also 1ST JOHN 3:2.
 1st Corinthians 15:49: And as we have borne the image of the earthy, we shall also bear the image of the heavenly.
-1st John 3:2 Beloved, now are we the sons of God, and it doth not yet appear what we shall be: but we know that, when he shall appear, we shall be like him; for we shall see him as he is......
+1st John 3:2 Beloved, now are we the sons of GOD, and it doth not yet appear what we shall be: but we know that, when he shall appear, we shall be like him; for we shall see him as he is......
 Prophet said the above bible verse is a lie cause what we shall be like hath appeared as far back as the time of genesis and this is just talking from the earth.
 THE IMAGE OF THE HEAVENLY IS THE ORIGINAL ANATOMY OF THE MAN BEFORE THE FALL!
 
-▪︎ After The Prophet revealed to us about THE GOD passing in front of a mirror and the mirror not been able to reflect or capture HIS IMAGE, THE MOST HOLY SPIRIT then said to The Prophet that what HE said was that: That which shows one his left as his right, and his right as his left cannot do so to ME (GOD ALMIGHTY).
+▪︎ After THE PROPHET revealed to us about THE GOD passing in front of a mirror and the mirror not been able to reflect or capture HIS IMAGE, THE MOST HOLY SPIRIT then said to THE PROPHET that what HE said was that: That which shows one his left as his right, and his right as his left cannot do so to ME (GOD ALMIGHTY).
 ▪︎ When you have become an elite is when the person has graduated from certain knowledge of supernatural realities. When you have become that person that has reached that knowledge status, the person would have become too powerful for lucifer to hinder due to what the person have known and the audience the person have attracted to himself. When you have become an elite is when the you have graduated in certain knowledge of supernatural realities
 ▪︎ When you have become too powerful to hinder due to what you have known and the audience you have attracted to yourself, when as a result of that, your emergence, star power or global influence, and dominance outweighs that of his kingdom, then, his (Lucifer) dream becomes threatened. Remember, he's a dream chaser because he has considered being outclassed, then he makes his offer.
 ▪︎ Do you know that in the thirty-three and a half years of JESUS (HPE) stay here, HE sang? They didn't even tell us about HIS voice.
@@ -250,15 +250,20 @@ export async function generateQuestions(
   const usedIndicesStr = localStorage.getItem(usedIndicesKey);
   let usedIndices: number[] = usedIndicesStr ? JSON.parse(usedIndicesStr) : [];
 
-  // If all questions used, reset
-  if (usedIndices.length >= ARKUMEN_QUESTIONS_POOL.length) {
-    usedIndices = [];
+  // Filter pool by difficulty
+  const difficultyPool = ARKUMEN_QUESTIONS_POOL.filter(q => q.difficulty === difficulty);
+
+  // If all questions in this difficulty used, reset for this difficulty
+  const usedDifficultyIndices = usedIndices.filter(i => ARKUMEN_QUESTIONS_POOL[i] && ARKUMEN_QUESTIONS_POOL[i].difficulty === difficulty);
+  if (usedDifficultyIndices.length >= difficultyPool.length) {
+    usedIndices = usedIndices.filter(i => ARKUMEN_QUESTIONS_POOL[i] && ARKUMEN_QUESTIONS_POOL[i].difficulty !== difficulty);
   }
 
-  // Filter available questions
+  // Filter available questions in this difficulty
   const availableIndices = ARKUMEN_QUESTIONS_POOL
-    .map((_, i) => i)
-    .filter(i => !usedIndices.includes(i));
+    .map((q, i) => ({ q, i }))
+    .filter(({ q, i }) => q.difficulty === difficulty && !usedIndices.includes(i))
+    .map(({ i }) => i);
 
   // Pick random questions from available
   const selectedIndices = shuffleArray(availableIndices).slice(0, count);
@@ -293,11 +298,11 @@ export async function generateDailyChallenge(date: string): Promise<DailyChallen
   return {
     date,
     questions,
-    theme: "Daily Revelation: The Path of the Warrior"
+    theme: "Daily Revelation: The Path of the Arker"
   };
 }
 
-export async function generateWarriorTitle(username: string, points: number, score: number, category: string, email?: string): Promise<string> {
+export async function generateArkerTitle(username: string, points: number, score: number, category: string, email?: string): Promise<string> {
   // Special case for the Architect
   if (email === "nonsookoli757@gmail.com") {
     return "The Architect";
@@ -305,16 +310,20 @@ export async function generateWarriorTitle(username: string, points: number, sco
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: `Generate a short, epic Warrior Title (2-4 words) for a trivia warrior named '${username}'.
+    contents: `Generate a short, epic Arker Title (2-4 words) for a trivia Arker named '${username}'.
 Stats: ${points} points, highest score ${score}.
-The title should sound like a high-ranking warrior in the Divine Revelations Arena.
+The title should sound like a high-ranking Arker in the Divine Revelations Arena.
 Classification based on points:
 0-1000: Seeker
 1001-5000: Disciple
 5001-15000: Guardian
 15001-50000: Master
-50001+: Legend (e.g., Grand Master, Divine Sentinel)
+50001-100000: Grand Master
+100001+: Legend (e.g., Divine Sentinel, Eternal Witness)
 IMPORTANT: Do NOT use the title "Infinite Polymath". Use titles like "The Architect" only for the highest achievers.
+STRICT RULES:
+1. Always refer to JESUS HIS PREEMINENCE as JESUS HIS PREEMINENCE.
+2. Always refer to GOD as GOD.
 Return ONLY the title string.`,
   });
 
@@ -337,7 +346,7 @@ export async function analyzePerformance(
 }> {
   const percentage = (score / (totalQuestions * 1000)) * 100;
   
-  const prompt = `Analyze this Warrior's performance in the Arkumen Arena.
+  const prompt = `Analyze this Arker's performance in the Arkumen Arena.
 Arena Mode: ${mode}
 Category: ${category}
 Outcome: ${result}
@@ -346,6 +355,11 @@ Max Streak: ${streak}
 Accuracy: ${percentage.toFixed(1)}%
 
 Provide a detailed performance breakdown in the voice of the Grand Master.
+STRICT RULES:
+1. Always refer to JESUS HIS PREEMINENCE as JESUS HIS PREEMINENCE.
+2. Always refer to GOD as GOD.
+3. Refer to the player as an Arker.
+
 1. Grade: A single letter (S, A, B, C, D, F).
 2. Message: A powerful, thematic summary of their performance.
 3. Strengths: 2-3 specific areas where they excelled (e.g., "Unyielding Focus", "Rapid Revelation").
@@ -375,7 +389,7 @@ STRICT JSON OUTPUT.`;
 
   const defaultResult = {
     grade: "C",
-    message: "The path to mastery is long. Continue your training, Warrior.",
+    message: "The path to mastery is long. Continue your training, Arker.",
     strengths: ["Persistence"],
     weaknesses: ["Speed"],
     nextSteps: "Return to the Classic Quiz to build your foundation."

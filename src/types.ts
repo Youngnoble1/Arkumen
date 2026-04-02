@@ -3,6 +3,7 @@ export interface Question {
   options: string[];
   correctAnswer: number;
   explanation: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
 }
 
 export interface UserProfile {
@@ -11,7 +12,9 @@ export interface UserProfile {
   points: number;
   highestScore: number;
   favoriteCategory: string;
-  warriorTitle: string;
+  arkerTitle: string;
+  rank: string;
+  level: number;
   createdAt: string;
   lastDailyChallengeDate?: string;
   dailyChallengeStreak?: number;

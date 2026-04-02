@@ -10,7 +10,9 @@
 //   - points: number (required) - Total Royalty Points
 //   - highestScore: number - Max score in one game
 //   - favoriteCategory: string - Most played category
-//   - warriorTitle: string - AI-generated title
+//   - arkerTitle: string - AI-generated title
+//   - rank: string - Arker rank
+//   - level: number - Arker level
 //   - createdAt: timestamp - Creation time
 //   - lastDailyChallengeDate: string - Date of last daily challenge
 //   - dailyChallengeStreak: number - Current streak
@@ -60,14 +62,16 @@ service cloud.firestore {
     }
     
     function isValidUser(data) {
-      let requiredFields = ['uid', 'username', 'points', 'highestScore', 'favoriteCategory', 'warriorTitle', 'createdAt'];
+      let requiredFields = ['uid', 'username', 'points', 'highestScore', 'favoriteCategory', 'arkerTitle', 'rank', 'level', 'createdAt'];
       return data.keys().hasAll(requiredFields) &&
              data.uid == request.auth.uid &&
              data.username is string && data.username.size() > 0 && data.username.size() < 50 &&
              data.points is number && data.points >= 0 &&
              data.highestScore is number &&
              data.favoriteCategory is string &&
-             data.warriorTitle is string &&
+             data.arkerTitle is string &&
+             data.rank is string &&
+             data.level is number &&
              data.createdAt is string &&
              (!('lastDailyChallengeDate' in data) || data.lastDailyChallengeDate is string) &&
              (!('dailyChallengeStreak' in data) || data.dailyChallengeStreak is number) &&
