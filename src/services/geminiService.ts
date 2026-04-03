@@ -312,14 +312,20 @@ export async function generateArkerTitle(username: string, points: number, score
     model: "gemini-3-flash-preview",
     contents: `Generate a short, epic Arker Title (2-4 words) for a trivia Arker named '${username}'.
 Stats: ${points} points, highest score ${score}.
-The title should sound like a high-ranking Arker in the Divine Revelations Arena.
+The title should sound like a high-ranking Arker in the Arkers Elite Arena.
 Classification based on points:
-0-1000: Seeker
-1001-5000: Disciple
-5001-15000: Guardian
-15001-50000: Master
-50001-100000: Grand Master
-100001+: Legend (e.g., Divine Sentinel, Eternal Witness)
+0-1000: Neophyte
+1001-5000: Initiate
+5001-15000: Seeker
+15001-50000: Proselyte
+50001-100000: Disciple
+100001-250000: Apostle
+250001-500000: Evangelist
+500001-1000000: Prophet
+1000001-2500000: High Priest
+2500001-5000000: Elder
+5000001-10000000: Legend
+10000001+: Eternal (e.g., Divine Sentinel, Eternal Witness)
 IMPORTANT: Do NOT use the title "Infinite Polymath". Use titles like "The Architect" only for the highest achievers.
 STRICT RULES:
 1. Always refer to JESUS HIS PREEMINENCE as JESUS HIS PREEMINENCE.
@@ -346,7 +352,7 @@ export async function analyzePerformance(
 }> {
   const percentage = (score / (totalQuestions * 1000)) * 100;
   
-  const prompt = `Analyze this Arker's performance in the Arkumen Arena.
+  const prompt = `Analyze this Arker's performance in the Arkers Elite Arena.
 Arena Mode: ${mode}
 Category: ${category}
 Outcome: ${result}

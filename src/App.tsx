@@ -51,23 +51,13 @@ type GameState = 'LANDING' | 'LOBBY' | 'LOADING' | 'GAME' | 'RESULT' | 'MULTIPLA
 type Tab = 'HOME' | 'RANKS' | 'PROFILE' | 'SETTINGS';
 type GameMode = 'CLASSIC' | 'BLITZ' | 'SURVIVAL' | 'MULTIPLAYER' | 'ACADEMIC' | 'DAILY';
 
-const LADDER_VALUES = [
-  100, 200, 300, 500, 1000, 
-  2000, 4000, 8000, 16000, 32000, 
-  64000, 125000, 250000, 500000, 1000000,
-  2000000, 3000000, 5000000, 7500000, 10000000,
-  15000000, 20000000, 30000000, 40000000, 50000000,
-  75000000, 100000000, 150000000, 200000000, 250000000,
-  300000000, 400000000, 500000000, 750000000, 1000000000, 2000000000
-];
-
 const TUTORIAL_CONTENT = {
   'CLASSIC': {
     title: "Classic Quiz",
     subtitle: "The Foundation of Faith",
-    description: "A deep dive into the divine revelations. Take your time to absorb the knowledge.",
+    description: "A deep dive into the Arkers Elite revelations. Take your time to absorb the knowledge.",
     mechanics: [
-      "15 questions per arena",
+      "18 questions per arena",
       "No time limit per question",
       "Focus on accuracy and understanding",
       "Earn Royalty Points for every correct answer",
@@ -125,7 +115,7 @@ const TUTORIAL_CONTENT = {
       "Special badges for consistency",
       "Exclusive daily themes"
     ],
-    reward: "5000+ Royalty Points + Streak Bonus"
+    reward: "18,000+ Royalty Points + Streak Bonus"
   }
 };
 
@@ -133,11 +123,11 @@ const BADGE_DEFINITIONS = [
   { id: 'novice', name: 'Novice Arker', icon: '🛡️', desc: 'Complete your first ascension' },
   { id: 'veteran', name: 'Veteran Arker', icon: '⚔️', desc: 'Complete 10 ascensions' },
   { id: 'legend', name: 'Legendary Arker', icon: '🔥', desc: 'Complete 50 ascensions' },
-  { id: 'high_scorer', name: 'High Scorer', icon: '💎', desc: 'Score over 10,000 in a single game' },
-  { id: 'streak_master', name: 'Streak Master', icon: '⚡', desc: 'Achieve a 15-question streak' },
+  { id: 'high_scorer', name: 'High Scorer', icon: '💎', desc: 'Score over 15,000 in a single game' },
+  { id: 'streak_master', name: 'Streak Master', icon: '⚡', desc: 'Achieve a 18-question streak' },
   { id: 'daily_devotee', name: 'Daily Devotee', icon: '📅', desc: 'Complete 3 daily challenges' },
-  { id: 'category_master', name: 'Category Master', icon: '🎓', desc: 'Reach 50,000 total points' },
-  { id: 'divine_scholar', name: 'Divine Scholar', icon: '📜', desc: 'Achieve Grade S in any mode' },
+  { id: 'category_master', name: 'Category Master', icon: '🎓', desc: 'Reach 100,000 total points' },
+  { id: 'elite_scholar', name: 'Elite Scholar', icon: '📜', desc: 'Achieve Grade S in any mode' },
 ];
 
 export default function App() {
@@ -260,7 +250,14 @@ export default function App() {
       const docRef = doc(db, 'users', uid);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
-        setProfile(docSnap.data() as UserProfile);
+        const data = docSnap.data() as UserProfile;
+        const isArchitect = auth.currentUser?.email === "nonsookoli757@gmail.com";
+        if (isArchitect && (data.rank !== 'Architect' || data.arkerTitle !== 'The Architect')) {
+          data.rank = 'Architect';
+          data.arkerTitle = 'The Architect';
+          await updateDoc(docRef, { rank: 'Architect', arkerTitle: 'The Architect' });
+        }
+        setProfile(data);
       } else {
         const isArchitect = auth.currentUser?.email === "nonsookoli757@gmail.com";
         const newProfile: UserProfile = {
@@ -270,7 +267,7 @@ export default function App() {
           highestScore: 0,
           favoriteCategory: 'General',
           arkerTitle: isArchitect ? 'The Architect' : 'The Seeker',
-          rank: 'Initiate',
+          rank: isArchitect ? 'Architect' : 'Initiate',
           level: 1,
           createdAt: new Date().toISOString()
         };
@@ -356,7 +353,7 @@ export default function App() {
         return;
       }
 
-      q = await generateQuestions(category, mode === 'CLASSIC' ? 36 : 15, selectedDifficulty);
+      q = await generateQuestions(category, mode === 'CLASSIC' ? 18 : 15, selectedDifficulty);
       setQuestions(q);
       setCurrentQuestionIndex(0);
       setScore(0);
@@ -433,13 +430,15 @@ export default function App() {
   const handleAnswer = (index: number) => {
     setSelectedAnswer(index);
     const correct = index === questions[currentQuestionIndex].correctAnswer;
+    const pointsPerQuestion = (gameMode === 'ACADEMIC') ? 500 : 1000;
     
     if (correct) {
       correctSound.current?.play().catch(() => {});
       const newStreak = streak + 1;
       setStreak(newStreak);
       setMaxStreak(Math.max(maxStreak, newStreak));
-      setScore(prev => prev + (gameMode === 'CLASSIC' ? LADDER_VALUES[currentQuestionIndex] || 1000 : 500));
+      
+      setScore(prev => prev + pointsPerQuestion);
       
       // Auto-advance on correct answer after a short delay
       setTimeout(() => {
@@ -456,7 +455,7 @@ export default function App() {
     }
 
     if (socket && gameState === 'GAME' && roomId) {
-      socket.emit("submit-score", { roomId, score: score + (correct ? 500 : 0) });
+      socket.emit("submit-score", { roomId, score: score + (correct ? pointsPerQuestion : 0) });
     }
   };
 
@@ -496,6 +495,10 @@ export default function App() {
 
       if (profile) {
         let newPoints = profile.points + score;
+        if (auth.currentUser?.email === "nonsookoli757@gmail.com") {
+          // Remove the last 3 zeros from points (divide by 1000)
+          newPoints = profile.points + Math.floor(score / 1000);
+        }
         const newHighest = Math.max(profile.highestScore, score);
         let newTitle = profile.arkerTitle;
         let lastDailyDate = profile.lastDailyChallengeDate;
@@ -505,14 +508,25 @@ export default function App() {
         let newRank = profile.rank || 'Initiate';
 
         // Calculate Level and Rank based on points
-        newLevel = Math.floor(Math.sqrt(newPoints / 100)) + 1;
+        // If architect, points are scaled, so level calculation should reflect that
+        const scaledPoints = (auth.currentUser?.email === "nonsookoli757@gmail.com") ? newPoints * 1000 : newPoints;
+        newLevel = Math.floor(Math.sqrt(scaledPoints / 100)) + 1;
         
         const ranks = [
-          'Initiate', 'Seeker', 'Disciple', 'Guardian', 'Sentinel', 
-          'Master', 'Grand Master', 'Elder', 'Legend', 'Eternal'
+          'Neophyte', 'Initiate', 'Seeker', 'Proselyte', 'Disciple', 
+          'Apostle', 'Evangelist', 'Prophet', 'High Priest', 'Elder', 
+          'Legend', 'Eternal'
         ];
-        const rankIndex = Math.min(Math.floor(newLevel / 5), ranks.length - 1);
+        const rankIndex = Math.min(Math.floor(newLevel / 4), ranks.length - 1);
         newRank = ranks[rankIndex];
+
+        // Special handling for the Architect
+        if (auth.currentUser?.email === "nonsookoli757@gmail.com") {
+          newTitle = "The Architect";
+          newRank = "Architect";
+        } else if (score > profile.highestScore && score > 5000) {
+          newTitle = await generateArkerTitle(profile.username, newPoints, newHighest, selectedCategory, auth.currentUser?.email || undefined);
+        }
 
         // Check for new badges
         const newBadges = [...badges];
@@ -523,10 +537,10 @@ export default function App() {
         if (totalGames >= 10 && !newBadges.includes('veteran')) newBadges.push('veteran');
         if (totalGames >= 50 && !newBadges.includes('legend')) newBadges.push('legend');
         
-        if (score >= 10000 && !newBadges.includes('high_scorer')) newBadges.push('high_scorer');
-        if (maxStreak >= 15 && !newBadges.includes('streak_master')) newBadges.push('streak_master');
-        if (newPoints >= 50000 && !newBadges.includes('category_master')) newBadges.push('category_master');
-        if (result.grade === 'S' && !newBadges.includes('divine_scholar')) newBadges.push('divine_scholar');
+        if (score >= 15000 && !newBadges.includes('high_scorer')) newBadges.push('high_scorer');
+        if (maxStreak >= 18 && !newBadges.includes('streak_master')) newBadges.push('streak_master');
+        if (newPoints >= 100000 && !newBadges.includes('category_master')) newBadges.push('category_master');
+        if (result.grade === 'S' && !newBadges.includes('elite_scholar')) newBadges.push('elite_scholar');
 
         if (gameMode === 'DAILY') {
           const today = new Date().toISOString().split('T')[0];
@@ -540,19 +554,6 @@ export default function App() {
           lastDailyDate = today;
 
           if (dailyStreak >= 3 && !newBadges.includes('daily_devotee')) newBadges.push('daily_devotee');
-          
-          // Legacy badges (keeping them for compatibility)
-          if (dailyStreak === 7 && !newBadges.includes("7-Day Streak")) {
-            newBadges.push("7-Day Streak");
-          } else if (dailyStreak === 30 && !newBadges.includes("Monthly Master")) {
-            newBadges.push("Monthly Master");
-          }
-        }
-        
-        if (auth.currentUser?.email === "nonsookoli757@gmail.com") {
-          newTitle = "The Architect";
-        } else if (score > profile.highestScore && score > 5000) {
-          newTitle = await generateArkerTitle(profile.username, newPoints, newHighest, selectedCategory, auth.currentUser?.email || undefined);
         }
 
         const updatedProfile = {
@@ -647,7 +648,7 @@ export default function App() {
                 </div>
               </div>
               <h1 className="font-display text-5xl md:text-8xl mb-2 gold-gradient tracking-[0.1em] sm:tracking-[0.3em] px-4">ARKUMEN</h1>
-              <p className="text-slate-400 uppercase tracking-[0.2em] sm:tracking-[0.5em] text-[8px] sm:text-xs mb-12 px-4 max-w-full">The Divine Revelations Quiz Game</p>
+              <p className="text-slate-400 uppercase tracking-[0.2em] sm:tracking-[0.5em] text-[8px] sm:text-xs mb-12 px-4 max-w-full">The Arkers Elite Quiz Game</p>
               
               {authError && (
                 <div className="mb-8 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm max-w-md flex flex-col items-center gap-3">
@@ -684,7 +685,7 @@ export default function App() {
                 <header className="flex justify-between items-center py-4">
                   <div>
                     <h1 className="font-display text-3xl gold-gradient tracking-widest">ARKUMEN</h1>
-                    <p className="text-slate-500 text-[10px] uppercase tracking-[0.3em]">The Divine Revelations Quiz Game</p>
+                    <p className="text-slate-500 text-[10px] uppercase tracking-[0.3em]">The Arkers Elite Quiz Game</p>
                   </div>
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-arkumen-gold to-[#996515] p-0.5 shadow-[0_0_15px_rgba(212,175,55,0.3)]">
                     <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center overflow-hidden">
@@ -727,7 +728,7 @@ export default function App() {
                     <ChallengeCard 
                       icon={<Crown className="text-arkumen-gold" />}
                       title="Classic Quiz"
-                      desc="36 levels of divine revelations."
+                      desc="18 levels of Arkers Elite revelations."
                       onClick={() => startNewGame('CLASSIC')}
                       onInfoClick={() => setShowTutorial('CLASSIC')}
                     />
@@ -987,7 +988,7 @@ export default function App() {
                   {gameMode === 'CLASSIC' ? 'Royalty Points' : 'Score'}
                 </p>
                 <p className="font-display text-2xl gold-gradient">
-                  {gameMode === 'CLASSIC' ? (LADDER_VALUES[currentQuestionIndex] || 0).toLocaleString() : score.toLocaleString()}
+                  {gameMode === 'CLASSIC' ? (1000).toLocaleString() : score.toLocaleString()}
                 </p>
               </div>
             </header>
