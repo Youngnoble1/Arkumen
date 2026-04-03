@@ -443,13 +443,13 @@ export default function App() {
       // Auto-advance on correct answer after a short delay
       setTimeout(() => {
         nextQuestion();
-      }, 1500);
+      }, 800);
     } else {
       wrongSound.current?.play().catch(() => {});
       setStreak(0);
       setShowExplanation(true); // Only show explanation on wrong answer
       if (gameMode === 'SURVIVAL') {
-        setTimeout(() => endGame(), 2000);
+        setTimeout(() => endGame(), 1200);
         return;
       }
     }

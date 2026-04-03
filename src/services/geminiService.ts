@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import { Question, DailyChallenge } from "../types";
 
 const apiKey = process.env.GEMINI_API_KEY;
@@ -310,27 +310,15 @@ export async function generateArkerTitle(username: string, points: number, score
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
-    contents: `Generate a short, epic Arker Title (2-4 words) for a trivia Arker named '${username}'.
-Stats: ${points} points, highest score ${score}.
-The title should sound like a high-ranking Arker in the Arkers Elite Arena.
-Classification based on points:
-0-1000: Neophyte
-1001-5000: Initiate
-5001-15000: Seeker
-15001-50000: Proselyte
-50001-100000: Disciple
-100001-250000: Apostle
-250001-500000: Evangelist
-500001-1000000: Prophet
-1000001-2500000: High Priest
-2500001-5000000: Elder
-5000001-10000000: Legend
-10000001+: Eternal (e.g., Divine Sentinel, Eternal Witness)
-IMPORTANT: Do NOT use the title "Infinite Polymath". Use titles like "The Architect" only for the highest achievers.
-STRICT RULES:
-1. Always refer to JESUS HIS PREEMINENCE as JESUS HIS PREEMINENCE.
-2. Always refer to GOD as GOD.
+    contents: `Generate a short, epic Arker Title (2-4 words) for '${username}'.
+Stats: ${points} pts, high score ${score}.
+Rank: ${category}.
+Points-based tiers: 0-1k: Neophyte, 1k-5k: Initiate, 5k-15k: Seeker, 15k-50k: Proselyte, 50k-100k: Disciple, 100k-250k: Apostle, 250k-500k: Evangelist, 500k-1m: Prophet, 1m-2.5m: High Priest, 2.5m-5m: Elder, 5m-10m: Legend, 10m+: Eternal.
+RULES: Use "JESUS HIS PREEMINENCE" and "GOD". No "Infinite Polymath".
 Return ONLY the title string.`,
+    config: {
+      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
+    }
   });
 
   return response.text?.trim() || "The Seeker";
@@ -352,32 +340,17 @@ export async function analyzePerformance(
 }> {
   const percentage = (score / (totalQuestions * 1000)) * 100;
   
-  const prompt = `Analyze this Arker's performance in the Arkers Elite Arena.
-Arena Mode: ${mode}
-Category: ${category}
-Outcome: ${result}
-Final Score: ${score}
-Max Streak: ${streak}
-Accuracy: ${percentage.toFixed(1)}%
-
-Provide a detailed performance breakdown in the voice of the Grand Master.
-STRICT RULES:
-1. Always refer to JESUS HIS PREEMINENCE as JESUS HIS PREEMINENCE.
-2. Always refer to GOD as GOD.
-3. Refer to the player as an Arker.
-
-1. Grade: A single letter (S, A, B, C, D, F).
-2. Message: A powerful, thematic summary of their performance.
-3. Strengths: 2-3 specific areas where they excelled (e.g., "Unyielding Focus", "Rapid Revelation").
-4. Weaknesses: 1-2 areas for improvement (e.g., "Hesitation in the Void", "Fading Endurance").
-5. Next Steps: A specific training recommendation.
-
-STRICT JSON OUTPUT.`;
+  const prompt = `Analyze Arker performance.
+Mode: ${mode}, Category: ${category}, Outcome: ${result}, Score: ${score}, Streak: ${streak}, Accuracy: ${percentage.toFixed(1)}%.
+Voice: Grand Master.
+RULES: Use "JESUS HIS PREEMINENCE" and "GOD". Refer to player as Arker.
+JSON: Grade (S,A,B,C,D,F), Message (thematic), Strengths (2-3), Weaknesses (1-2), NextSteps.`;
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: prompt,
     config: {
+      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
