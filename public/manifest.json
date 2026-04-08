@@ -1,0 +1,23 @@
+{
+  "name": "ARKUMEN – Arkers Elite Quiz Game",
+  "short_name": "ARKUMEN",
+  "description": "A high-stakes metaphysical trivia platform for spiritual and divine knowledge in the Arkers Elite Arena.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#d4af37",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

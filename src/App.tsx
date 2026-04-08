@@ -49,7 +49,34 @@ import { io, Socket } from 'socket.io-client';
 
 type GameState = 'LANDING' | 'LOBBY' | 'LOADING' | 'GAME' | 'RESULT' | 'MULTIPLAYER_LOBBY';
 type Tab = 'HOME' | 'RANKS' | 'PROFILE' | 'SETTINGS';
-type GameMode = 'CLASSIC' | 'BLITZ' | 'SURVIVAL' | 'MULTIPLAYER' | 'ACADEMIC' | 'DAILY';
+type GameMode = 'CLASSIC' | 'BLITZ' | 'SURVIVAL' | 'MULTIPLAYER' | 'ACADEMIC' | 'TUTORIAL';
+
+const TUTORIAL_STEPS = [
+  {
+    mode: 'TUTORIAL',
+    trigger: 'START',
+    title: "Welcome, Arker!",
+    content: "You have entered the ARKUMEN Arena. Your goal is to master the revelations of JESUS HIS PREEMINENCE."
+  },
+  {
+    mode: 'TUTORIAL',
+    trigger: 'QUESTION',
+    title: "The Challenge",
+    content: "Read the question carefully. Each correct answer earns you Royalty Points and increases your Rank."
+  },
+  {
+    mode: 'TUTORIAL',
+    trigger: 'STREAK',
+    title: "Spiritual Momentum",
+    content: "Answering correctly in a row builds a Streak. High streaks unlock special badges and titles!"
+  },
+  {
+    mode: 'TUTORIAL',
+    trigger: 'EXPLANATION',
+    title: "The Revelation",
+    content: "If you miss a question, don't worry. The Revelation will explain the truth. In Tutorial mode, you cannot fail."
+  }
+];
 
 const TUTORIAL_CONTENT = {
   'CLASSIC': {
@@ -104,18 +131,18 @@ const TUTORIAL_CONTENT = {
     ],
     reward: "Arena Glory + Opponent's Respect"
   },
-  'DAILY': {
-    title: "Daily Revelation",
-    subtitle: "The Daily Bread",
-    description: "A unique set of questions every 24 hours. Maintain your spiritual discipline.",
+  'TUTORIAL': {
+    title: "Arker's Initiation",
+    subtitle: "The First Step",
+    description: "Learn the mechanics of the arena. No pressure, just enlightenment.",
     mechanics: [
-      "10 unique questions daily",
-      "Resets every 24 hours",
-      "Streak bonuses for consecutive days",
-      "Special badges for consistency",
-      "Exclusive daily themes"
+      "Guided walkthrough",
+      "Simplified questions",
+      "Interactive feature explanations",
+      "No game-over on mistakes",
+      "Perfect for new Arkers"
     ],
-    reward: "18,000+ Royalty Points + Streak Bonus"
+    reward: "Initiation Badge + 5,000 Royalty Points"
   }
 };
 
@@ -155,9 +182,32 @@ export default function App() {
   const [sourceType, setSourceType] = useState<'NOTES' | 'YOUTUBE' | 'VIDEO'>('NOTES');
   const [sourceInput, setSourceInput] = useState("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [dailyChallenge, setDailyChallenge] = useState<DailyChallenge | null>(null);
-  const [dailyChallengeLoading, setDailyChallengeLoading] = useState(false);
   const [selectedDifficulty, setSelectedDifficulty] = useState<'Easy' | 'Medium' | 'Hard'>('Easy');
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const [showTutorialOverlay, setShowTutorialOverlay] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
 
   // Sounds
   const correctSound = useRef<HTMLAudioElement | null>(null);
@@ -216,7 +266,6 @@ export default function App() {
           await fetchProfile(u.uid);
           fetchHistory(u.uid);
           fetchLeaderboard();
-          fetchDailyChallenge();
           setGameState('LOBBY');
         } else {
           setGameState('LANDING');
@@ -306,25 +355,6 @@ export default function App() {
     });
   };
 
-  const fetchDailyChallenge = async () => {
-    const today = new Date().toISOString().split('T')[0];
-    try {
-      const docRef = doc(db, 'daily_challenges', today);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setDailyChallenge(docSnap.data() as DailyChallenge);
-      } else {
-        setDailyChallengeLoading(true);
-        const newChallenge = await generateDailyChallenge(today);
-        await setDoc(docRef, newChallenge);
-        setDailyChallenge(newChallenge);
-        setDailyChallengeLoading(false);
-      }
-    } catch (error) {
-      console.error("Daily Challenge Error:", error);
-    }
-  };
-
   const handleLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
@@ -346,6 +376,15 @@ export default function App() {
     setGameMode(mode);
     setSelectedCategory(category);
     setGameState('LOADING');
+    setScore(0);
+    setStreak(0);
+    setMaxStreak(0);
+    setCurrentQuestionIndex(0);
+    setSelectedAnswer(null);
+    setShowExplanation(false);
+    setTimeLeft(mode === 'BLITZ' ? 120 : 30);
+    setTutorialStep(0);
+
     try {
       let q: Question[] = [];
       if (mode === 'MULTIPLAYER') {
@@ -353,38 +392,20 @@ export default function App() {
         return;
       }
 
-      q = await generateQuestions(category, mode === 'CLASSIC' ? 18 : 15, selectedDifficulty);
+      if (mode === 'TUTORIAL') {
+        q = await generateQuestions("Initiation", 5, 'Easy');
+        setShowTutorialOverlay(true);
+      } else {
+        q = await generateQuestions(category, mode === 'CLASSIC' ? 18 : 15, selectedDifficulty);
+      }
+      
+      if (q.length === 0) throw new Error("No questions found");
       setQuestions(q);
-      setCurrentQuestionIndex(0);
-      setScore(0);
-      setStreak(0);
-      setMaxStreak(0);
-      setTimeLeft(mode === 'BLITZ' ? 120 : 30);
       setGameState('GAME');
     } catch (error) {
       console.error("Game Start Error:", error);
       setGameState('LOBBY');
     }
-  };
-
-  const startDailyChallenge = () => {
-    if (!dailyChallenge || !profile) return;
-    
-    const today = new Date().toISOString().split('T')[0];
-    if (profile.lastDailyChallengeDate === today) {
-      alert("You have already completed today's challenge, Arker!");
-      return;
-    }
-
-    setQuestions(dailyChallenge.questions);
-    setCurrentQuestionIndex(0);
-    setScore(0);
-    setStreak(0);
-    setMaxStreak(0);
-    setTimeLeft(30);
-    setGameMode('DAILY');
-    setSelectedCategory(dailyChallenge.theme);
-    setGameState('GAME');
   };
 
   const handleSourceGeneration = async () => {
@@ -439,6 +460,11 @@ export default function App() {
       setMaxStreak(Math.max(maxStreak, newStreak));
       
       setScore(prev => prev + pointsPerQuestion);
+
+      if (gameMode === 'TUTORIAL' && newStreak === 1) {
+        setTutorialStep(2);
+        setShowTutorialOverlay(true);
+      }
       
       // Auto-advance on correct answer after a short delay
       setTimeout(() => {
@@ -448,6 +474,12 @@ export default function App() {
       wrongSound.current?.play().catch(() => {});
       setStreak(0);
       setShowExplanation(true); // Only show explanation on wrong answer
+
+      if (gameMode === 'TUTORIAL') {
+        setTutorialStep(3);
+        setShowTutorialOverlay(true);
+      }
+
       if (gameMode === 'SURVIVAL') {
         setTimeout(() => endGame(), 1200);
         return;
@@ -542,18 +574,9 @@ export default function App() {
         if (newPoints >= 100000 && !newBadges.includes('category_master')) newBadges.push('category_master');
         if (result.grade === 'S' && !newBadges.includes('elite_scholar')) newBadges.push('elite_scholar');
 
-        if (gameMode === 'DAILY') {
-          const today = new Date().toISOString().split('T')[0];
-          const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-          const isConsecutive = profile.lastDailyChallengeDate === yesterday;
-          dailyStreak = isConsecutive ? (profile.dailyChallengeStreak || 0) + 1 : 1;
-          
-          // Bonus points for daily challenge
-          const bonusPoints = 5000 + (dailyStreak * 1000);
-          newPoints += bonusPoints;
-          lastDailyDate = today;
-
-          if (dailyStreak >= 3 && !newBadges.includes('daily_devotee')) newBadges.push('daily_devotee');
+        if (gameMode === 'TUTORIAL' && !newBadges.includes('novice')) {
+          newBadges.push('novice');
+          newPoints += 5000;
         }
 
         const updatedProfile = {
@@ -715,16 +738,14 @@ export default function App() {
 
                   <h2 className="text-arkumen-gold/60 font-display uppercase tracking-widest text-[10px] mb-6">Active Arenas</h2>
                   <div className="space-y-4">
-                    {dailyChallenge && (
-                      <ChallengeCard 
-                        icon={<Sparkles className="text-arkumen-gold" />}
-                        title="Daily Revelation"
-                        desc={dailyChallenge.theme}
-                        badge={profile.lastDailyChallengeDate === dailyChallenge.date ? "COMPLETED" : "BONUS XP"}
-                        onClick={startDailyChallenge}
-                        onInfoClick={() => setShowTutorial('DAILY')}
-                      />
-                    )}
+                    <ChallengeCard 
+                      icon={<Zap className="text-arkumen-gold" />}
+                      title="Arker's Initiation"
+                      desc="New here? Learn the ways of the Elite."
+                      badge="TUTORIAL"
+                      onClick={() => startNewGame('TUTORIAL')}
+                      onInfoClick={() => setShowTutorial('TUTORIAL')}
+                    />
                     <ChallengeCard 
                       icon={<Crown className="text-arkumen-gold" />}
                       title="Classic Quiz"
@@ -939,10 +960,28 @@ export default function App() {
                   <div className="premium-card p-6">
                     <h3 className="font-bold text-sm uppercase tracking-widest text-arkumen-gold mb-4">About ARKUMEN</h3>
                     <div className="space-y-2 text-sm text-slate-500">
-                      <p>Version 2.0.0 (Revelations Engine)</p>
+                      <p>Version 2.0.0 (Arkers Elite Engine)</p>
                       <p>© 2026 ARKUMEN. All rights reserved.</p>
                     </div>
                   </div>
+
+                  {deferredPrompt && (
+                    <button 
+                      onClick={handleInstallClick}
+                      className="w-full premium-card p-6 flex items-center justify-between group hover:bg-arkumen-gold/10 transition-all"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-arkumen-gold/20 flex items-center justify-center">
+                          <Zap className="text-arkumen-gold" />
+                        </div>
+                        <div className="text-left">
+                          <h3 className="font-bold text-arkumen-gold uppercase tracking-widest text-sm">Install ARKUMEN</h3>
+                          <p className="text-[10px] text-slate-500 uppercase">Add to home screen for the elite experience</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="text-arkumen-gold group-hover:translate-x-1 transition-transform" />
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -994,6 +1033,36 @@ export default function App() {
             </header>
 
             <div className="flex-1 flex flex-col justify-center max-w-2xl mx-auto w-full">
+              {showTutorialOverlay && gameMode === 'TUTORIAL' && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm"
+                >
+                  <div className="premium-card p-8 max-w-md w-full text-center space-y-6">
+                    <div className="w-16 h-16 rounded-full bg-arkumen-gold/20 flex items-center justify-center mx-auto">
+                      <Zap className="text-arkumen-gold" size={32} />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-display gold-gradient mb-2">{TUTORIAL_STEPS[tutorialStep].title}</h3>
+                      <p className="text-slate-300 leading-relaxed">{TUTORIAL_STEPS[tutorialStep].content}</p>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setShowTutorialOverlay(false);
+                        if (tutorialStep === 0) {
+                          setTutorialStep(1);
+                          setShowTutorialOverlay(true);
+                        }
+                      }}
+                      className="w-full py-4 bg-arkumen-gold text-black font-bold rounded-xl hover:scale-[1.02] transition-transform"
+                    >
+                      {tutorialStep === 0 ? "NEXT" : "UNDERSTOOD"}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
               <div className="mb-8">
                 <div className="flex justify-between items-end mb-2">
                   <span className="text-arkumen-gold font-display text-[10px] uppercase tracking-widest">Arena Progress {currentQuestionIndex + 1}/{questions.length}</span>
@@ -1252,11 +1321,12 @@ export default function App() {
             onStart={() => {
               const mode = showTutorial;
               setShowTutorial(null);
-              if (mode === 'DAILY') startDailyChallenge();
+              if (mode === 'TUTORIAL') startNewGame('TUTORIAL');
               else if (mode === 'MULTIPLAYER') setGameState('MULTIPLAYER_LOBBY');
               else if (mode === 'CLASSIC') startNewGame('CLASSIC');
               else if (mode === 'BLITZ') startNewGame('BLITZ');
               else if (mode === 'SURVIVAL') startNewGame('SURVIVAL');
+              else if (mode === 'ACADEMIC') startNewGame('ACADEMIC');
             }}
           />
         )}

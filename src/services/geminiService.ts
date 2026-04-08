@@ -260,10 +260,19 @@ export async function generateQuestions(
   }
 
   // Filter available questions in this difficulty
-  const availableIndices = ARKUMEN_QUESTIONS_POOL
+  let availableIndices = ARKUMEN_QUESTIONS_POOL
     .map((q, i) => ({ q, i }))
     .filter(({ q, i }) => q.difficulty === difficulty && !usedIndices.includes(i))
     .map(({ i }) => i);
+
+  // If not enough available, reset and use full pool
+  if (availableIndices.length < count) {
+    usedIndices = usedIndices.filter(i => ARKUMEN_QUESTIONS_POOL[i] && ARKUMEN_QUESTIONS_POOL[i].difficulty !== difficulty);
+    availableIndices = ARKUMEN_QUESTIONS_POOL
+      .map((q, i) => ({ q, i }))
+      .filter(({ q, i }) => q.difficulty === difficulty)
+      .map(({ i }) => i);
+  }
 
   // Pick random questions from available
   const selectedIndices = shuffleArray(availableIndices).slice(0, count);

@@ -19,6 +19,12 @@
     @apply bg-arkumen-bg text-slate-200 font-sans antialiased;
     background-image: radial-gradient(circle at 50% -20%, #1e3a8a 0%, transparent 50%);
     background-attachment: fixed;
+    /* Prevent pull-to-refresh on mobile */
+    overscroll-behavior-y: contain;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
   }
 }
 
