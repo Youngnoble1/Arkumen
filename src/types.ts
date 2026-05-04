@@ -9,6 +9,7 @@ export interface Question {
 export interface UserProfile {
   uid: string;
   username: string;
+  photoURL?: string;
   points: number;
   highestScore: number;
   favoriteCategory: string;
@@ -18,8 +19,14 @@ export interface UserProfile {
   createdAt: string;
   lastDailyChallengeDate?: string;
   dailyChallengeStreak?: number;
-  badges?: string[];
+  badges?: any[];
   role?: 'user' | 'admin';
+  stats?: {
+    totalGames: number;
+    totalWins: number;
+    modeStats: Record<string, any>;
+    categoryStats: Record<string, any>;
+  };
 }
 
 export interface DailyChallenge {

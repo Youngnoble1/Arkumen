@@ -1,48 +1,39 @@
-// ===============================================================
-// Assumed Data Model
-// ===============================================================
-//
-// Collection: users
-// Document ID: {uid}
-// Fields:
-//   - uid: string (required) - Unique identifier
-//   - username: string (required) - Display name
-//   - points: number (required) - Total Royalty Points
-//   - highestScore: number - Max score in one game
-//   - favoriteCategory: string - Most played category
-//   - arkerTitle: string - AI-generated title
-//   - rank: string - Arker rank
-//   - level: number - Arker level
-//   - createdAt: timestamp - Creation time
-//   - lastDailyChallengeDate: string - Date of last daily challenge
-//   - dailyChallengeStreak: number - Current streak
-//   - badges: list - List of badges
-//
-// Collection: games
-// Document ID: {gameId}
-// Fields:
-//   - uid: string (required) - User ID
-//   - score: number (required) - Game score
-//   - streak: number - Max streak
-//   - category: string (required) - Game category
-//   - grade: string (required) - AI grade (S-D)
-//   - message: string - AI comment
-//   - mode: string (required) - Game mode
-//   - createdAt: string - Game time
-//
-// Collection: daily_challenges
-// Document ID: {date}
-// Fields:
-//   - date: string (required) - Date of challenge
-//   - theme: string (required) - Theme
-//   - questions: list (required) - List of questions
-//
-// ===============================================================
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {uid}
+    // Fields:
+    //   - uid: string (required, immutable)
+    //   - username: string (required, max 50 chars)
+    //   - points: number (required, positive)
+    //   - highestScore: number (required, positive)
+    //   - arkerTitle: string (required)
+    //   - rank: string (required)
+    //   - level: number (required, positive)
+    //   - createdAt: string (required, immutable)
+    //   - lastDailyChallengeDate: string (optional)
+    //   - dailyChallengeStreak: number (optional)
+    //   - badges: list (optional)
+    //   - role: string (required, enum: ['user', 'admin'])
+    //
+    // Collection: results
+    // Document ID: {resultId}
+    // Fields:
+    //   - uid: string (required, immutable)
+    //   - score: number (required, positive)
+    //   - streak: number (required, positive)
+    //   - category: string (required)
+    //   - grade: string (required)
+    //   - timestamp: string (required, immutable)
+    //   - mode: string (required)
+    //
+    // ===============================================================
+
     // ===============================================================
     // Helper Functions
     // ===============================================================
@@ -50,7 +41,7 @@ service cloud.firestore {
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -60,55 +51,71 @@ service cloud.firestore {
         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
           (request.auth.token.email == "nonsookoli757@gmail.com" && request.auth.token.email_verified == true));
     }
-    
+
     function isValidUser(data) {
-      let requiredFields = ['uid', 'username', 'points', 'highestScore', 'favoriteCategory', 'arkerTitle', 'rank', 'level', 'createdAt'];
-      return data.keys().hasAll(requiredFields) &&
+      return data.keys().hasAll(['uid', 'username', 'points', 'highestScore', 'arkerTitle', 'rank', 'level', 'createdAt', 'role']) &&
              data.uid == request.auth.uid &&
-             data.username is string && data.username.size() > 0 && data.username.size() < 50 &&
+             data.username is string && data.username.size() <= 50 &&
              data.points is number && data.points >= 0 &&
-             data.highestScore is number &&
-             data.favoriteCategory is string &&
-             data.arkerTitle is string &&
-             data.rank is string &&
-             data.level is number &&
-             data.createdAt is string &&
-             (!('lastDailyChallengeDate' in data) || data.lastDailyChallengeDate is string) &&
-             (!('dailyChallengeStreak' in data) || data.dailyChallengeStreak is number) &&
-             (!('badges' in data) || data.badges is list) &&
-             (!('role' in data) || data.role is string);
+             data.highestScore is number && data.highestScore >= 0 &&
+             data.level is number && data.level >= 1 &&
+             data.role in ['user', 'admin'];
     }
-    
-    function isValidGame(data) {
-      let requiredFields = ['uid', 'score', 'category', 'grade', 'mode', 'createdAt'];
-      return data.keys().hasAll(requiredFields) &&
+
+    function isValidResult(data) {
+      return data.keys().hasAll(['uid', 'score', 'streak', 'category', 'grade', 'timestamp', 'mode', 'message', 'strengths', 'weaknesses', 'nextSteps']) &&
              data.uid == request.auth.uid &&
-             data.score is number &&
-             data.category is string &&
-             data.mode is string &&
-             data.grade is string && data.grade.size() <= 10 &&
-             data.createdAt is string;
+             data.score is number && data.score >= 0 &&
+             data.streak is number && data.streak >= 0 &&
+             data.category is string && data.category.size() < 100 &&
+             data.grade is string && data.grade.size() < 5 &&
+             data.mode is string && data.mode.size() < 50 &&
+             data.message is string && data.message.size() < 1000 &&
+             data.strengths is list && data.strengths.size() < 10 &&
+             data.weaknesses is list && data.weaknesses.size() < 10 &&
+             data.nextSteps is string && data.nextSteps.size() < 1000 &&
+             data.timestamp is string && data.timestamp.size() < 50;
     }
 
     // ===============================================================
     // Rules
     // ===============================================================
 
-    match /users/{uid} {
-      allow read: if isAuthenticated();
-      allow create: if isOwner(uid) && isValidUser(request.resource.data) && (!('role' in request.resource.data) || request.resource.data.role == 'user');
-      allow update: if isOwner(uid) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
-    }
-    
-    match /games/{gameId} {
-      allow read: if isAuthenticated() && (resource.data.uid == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && isValidGame(request.resource.data);
+    match /users/{userId} {
+      // allow read: if true; // Public leaderboard access
+      allow get: if true;
+      allow list: if true; 
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isAdmin());
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
+                    request.resource.data.role == resource.data.role &&
+                    request.resource.data.createdAt == resource.data.createdAt &&
+                    request.resource.data.uid == resource.data.uid;
+      allow delete: if isAdmin();
     }
 
-    match /daily_challenges/{date} {
+    match /results/{resultId} {
+      allow read: if isAuthenticated() && resource.data.uid == request.auth.uid;
+      allow create: if isAuthenticated() && isValidResult(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    match /rooms/{roomId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated(); 
-      allow update: if isAdmin();
+      allow create: if isAuthenticated() && 
+                    request.resource.data.status == 'waiting' &&
+                    request.resource.data.players.size() == 1 &&
+                    request.resource.data.players[0].uid == request.auth.uid;
+      allow update: if isAuthenticated() && 
+                    (request.resource.data.players.size() >= resource.data.players.size());
+      allow delete: if isAdmin();
+    }
+
+    match /test/{docId=**} {
+      allow read: if true;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

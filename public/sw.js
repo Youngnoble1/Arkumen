@@ -2,7 +2,8 @@ const CACHE_NAME = 'arkumen-v1';
 const ASSETS = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/manifest.json',
+  '/icon.jpg'
 ];
 
 self.addEventListener('install', (event) => {

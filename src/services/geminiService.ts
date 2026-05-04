@@ -245,41 +245,36 @@ export async function generateQuestions(
   count: number, 
   difficulty: 'Easy' | 'Medium' | 'Hard'
 ): Promise<Question[]> {
-  // Get used question indices from localStorage
-  const usedIndicesKey = 'arkumen_used_questions';
+  // Get used question indices from localStorage to prevent repeats
+  const usedIndicesKey = `arkumen_used_questions_${difficulty.toLowerCase()}`;
   const usedIndicesStr = localStorage.getItem(usedIndicesKey);
   let usedIndices: number[] = usedIndicesStr ? JSON.parse(usedIndicesStr) : [];
 
   // Filter pool by difficulty
   const difficultyPool = ARKUMEN_QUESTIONS_POOL.filter(q => q.difficulty === difficulty);
-
-  // If all questions in this difficulty used, reset for this difficulty
-  const usedDifficultyIndices = usedIndices.filter(i => ARKUMEN_QUESTIONS_POOL[i] && ARKUMEN_QUESTIONS_POOL[i].difficulty === difficulty);
-  if (usedDifficultyIndices.length >= difficultyPool.length) {
-    usedIndices = usedIndices.filter(i => ARKUMEN_QUESTIONS_POOL[i] && ARKUMEN_QUESTIONS_POOL[i].difficulty !== difficulty);
-  }
-
-  // Filter available questions in this difficulty
-  let availableIndices = ARKUMEN_QUESTIONS_POOL
+  
+  // Find indices of questions in the pool that match the difficulty
+  const poolIndices = ARKUMEN_QUESTIONS_POOL
     .map((q, i) => ({ q, i }))
-    .filter(({ q, i }) => q.difficulty === difficulty && !usedIndices.includes(i))
+    .filter(({ q }) => q.difficulty === difficulty)
     .map(({ i }) => i);
 
-  // If not enough available, reset and use full pool
+  // Filter available indices (those not in usedIndices)
+  let availableIndices = poolIndices.filter(i => !usedIndices.includes(i));
+
+  // If we don't have enough new questions, reset the used list for this difficulty
   if (availableIndices.length < count) {
-    usedIndices = usedIndices.filter(i => ARKUMEN_QUESTIONS_POOL[i] && ARKUMEN_QUESTIONS_POOL[i].difficulty !== difficulty);
-    availableIndices = ARKUMEN_QUESTIONS_POOL
-      .map((q, i) => ({ q, i }))
-      .filter(({ q, i }) => q.difficulty === difficulty)
-      .map(({ i }) => i);
+    console.log(`Resetting question pool for ${difficulty} as all have been seen.`);
+    usedIndices = [];
+    availableIndices = poolIndices;
   }
 
   // Pick random questions from available
   const selectedIndices = shuffleArray(availableIndices).slice(0, count);
 
-  // Update used indices
-  const newUsedIndices = [...usedIndices, ...selectedIndices];
-  localStorage.setItem(usedIndicesKey, JSON.stringify(newUsedIndices));
+  // Update used indices in localStorage
+  const updatedUsedIndices = [...usedIndices, ...selectedIndices];
+  localStorage.setItem(usedIndicesKey, JSON.stringify(updatedUsedIndices));
 
   // Map to randomized questions
   return selectedIndices.map(i => randomizeQuestion(ARKUMEN_QUESTIONS_POOL[i]));
@@ -318,7 +313,7 @@ export async function generateArkerTitle(username: string, points: number, score
   }
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "models/gemini-3-flash-preview",
     contents: `Generate a short, epic Arker Title (2-4 words) for '${username}'.
 Stats: ${points} pts, high score ${score}.
 Rank: ${category}.
@@ -356,7 +351,7 @@ RULES: Use "JESUS HIS PREEMINENCE" and "GOD". Refer to player as Arker.
 JSON: Grade (S,A,B,C,D,F), Message (thematic), Strengths (2-3), Weaknesses (1-2), NextSteps.`;
 
   const response = await ai.models.generateContent({
-    model: "gemini-3-flash-preview",
+    model: "models/gemini-3-flash-preview",
     contents: prompt,
     config: {
       thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },

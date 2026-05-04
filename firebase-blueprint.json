@@ -1,76 +1,98 @@
 {
   "entities": {
-    "User": {
+    "UserProfile": {
       "title": "User Profile",
-      "description": "Stores user statistics and profile information.",
+      "description": "Stores user progress, stats, and identity",
       "type": "object",
       "properties": {
-        "uid": { "type": "string", "description": "Unique identifier for the user." },
-        "username": { "type": "string", "description": "Display name of the user." },
-        "points": { "type": "integer", "description": "Total Royalty Points earned." },
-        "highestScore": { "type": "integer", "description": "Highest score achieved in a single game." },
-        "favoriteCategory": { "type": "string", "description": "The category most played by the user." },
-        "arkerTitle": { "type": "string", "description": "The epic title earned by the user." },
-        "rank": { "type": "string", "description": "The current rank of the Arker." },
-        "level": { "type": "integer", "description": "The current level of the Arker." },
-        "createdAt": { "type": "string", "format": "date-time", "description": "When the profile was created." },
-        "lastDailyChallengeDate": { "type": "string", "description": "The date of the last completed daily challenge." },
-        "dailyChallengeStreak": { "type": "integer", "description": "Number of consecutive days the challenge was completed." },
-        "badges": { "type": "array", "items": { "type": "string" }, "description": "List of badges earned by the user." }
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "username": { "type": "string", "description": "Display name" },
+        "points": { "type": "number", "description": "Total accumulated points" },
+        "highestScore": { "type": "number", "description": "Highest score in a single game" },
+        "arkerTitle": { "type": "string", "description": "AI-generated title" },
+        "rank": { "type": "string", "description": "Current rank tier" },
+        "level": { "type": "number", "description": "User level" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastDailyChallengeDate": { "type": "string" },
+        "dailyChallengeStreak": { "type": "number" },
+        "badges": { "type": "array", "items": { "type": "string" } },
+        "role": { "type": "string", "enum": ["user", "admin"] }
       },
-      "required": ["uid", "username", "points"]
+      "required": ["uid", "username", "points", "highestScore", "arkerTitle", "rank", "level", "createdAt"]
     },
-    "GameSession": {
-      "title": "Game Session",
-      "description": "Stores the results of a completed trivia game.",
+    "GameResult": {
+      "title": "Game Result",
+      "description": "Records of individual quiz sessions",
       "type": "object",
       "properties": {
-        "uid": { "type": "string", "description": "The user who played the game." },
-        "score": { "type": "integer", "description": "Score achieved in the game." },
-        "streak": { "type": "integer", "description": "Maximum streak achieved." },
-        "category": { "type": "string", "description": "The trivia category." },
-        "grade": { "type": "string", "description": "The grade (S, A, B, C, D) assigned by AI." },
-        "message": { "type": "string", "description": "AI-generated encouraging comment." },
-        "mode": { "type": "string", "description": "The game mode (NORMAL, DAILY)." },
-        "createdAt": { "type": "string", "format": "date-time", "description": "When the game was played." }
+        "uid": { "type": "string" },
+        "score": { "type": "number" },
+        "streak": { "type": "number" },
+        "category": { "type": "string" },
+        "grade": { "type": "string" },
+        "message": { "type": "string" },
+        "strengths": { "type": "array", "items": { "type": "string" } },
+        "weaknesses": { "type": "array", "items": { "type": "string" } },
+        "nextSteps": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "mode": { "type": "string" }
       },
-      "required": ["uid", "score", "category", "grade"]
+      "required": ["uid", "score", "streak", "category", "grade", "message", "strengths", "weaknesses", "nextSteps", "timestamp", "mode"]
     },
-    "DailyChallenge": {
-      "title": "Daily Challenge",
-      "description": "Stores the questions for a specific day's challenge.",
+    "Question": {
+      "title": "Question",
+      "description": "A single quiz question",
       "type": "object",
       "properties": {
-        "date": { "type": "string", "description": "The date of the challenge (e.g., 2026-04-01)." },
-        "theme": { "type": "string", "description": "The theme of the day's challenge." },
-        "questions": {
-          "type": "array",
-          "items": {
+        "text": { "type": "string" },
+        "options": { "type": "array", "items": { "type": "string" } },
+        "correctAnswer": { "type": "number" },
+        "explanation": { "type": "string" },
+        "difficulty": { "type": "string", "enum": ["Easy", "Medium", "Hard"] }
+      },
+      "required": ["text", "options", "correctAnswer", "explanation", "difficulty"]
+    },
+    "BattleRoom": {
+      "title": "Battle Room",
+      "description": "A real-time multiplayer session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "type": "string", "enum": ["waiting", "playing", "finished"] },
+        "players": { 
+          "type": "array", 
+          "items": { 
             "type": "object",
             "properties": {
-              "text": { "type": "string" },
-              "options": { "type": "array", "items": { "type": "string" } },
-              "correctAnswer": { "type": "integer" },
-              "explanation": { "type": "string" }
+              "uid": { "type": "string" },
+              "username": { "type": "string" },
+              "score": { "type": "number" },
+              "currentQuestionIndex": { "type": "number" },
+              "isReady": { "type": "boolean" },
+              "photoURL": { "type": "string" },
+              "isFinished": { "type": "boolean" }
             }
           }
-        }
+        },
+        "questions": { "type": "array", "items": { "$ref": "Question" } },
+        "startTime": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["date", "theme", "questions"]
+      "required": ["id", "status", "players", "createdAt"]
     }
   },
   "firestore": {
     "/users/{uid}": {
-      "schema": "User",
-      "description": "User profile document."
+      "schema": "UserProfile",
+      "description": "User profile documents"
     },
-    "/games/{gameId}": {
-      "schema": "GameSession",
-      "description": "Individual game session records."
+    "/results/{resultId}": {
+      "schema": "GameResult",
+      "description": "Individual game results for leaderboard and history"
     },
-    "/daily_challenges/{date}": {
-      "schema": "DailyChallenge",
-      "description": "Daily challenge questions."
+    "/rooms/{roomId}": {
+      "schema": "BattleRoom",
+      "description": "Multiplayer battle rooms"
     }
   }
 }
