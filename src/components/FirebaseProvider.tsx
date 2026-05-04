@@ -29,14 +29,15 @@ const GUEST_PROFILE_KEY = 'arkumen_guest_profile';
 const createDefaultProfile = (uid: string, username: string): UserProfile => ({
   uid,
   username,
-  points: 0,
+  xp: 0,
   highestScore: 0,
   favoriteCategory: 'General',
-  arkerTitle: 'The Neophyte',
-  rank: 'Neophyte',
+  arkerTitle: 'Initiate',
+  rank: 'Initiate',
   level: 1,
   createdAt: new Date().toISOString(),
   role: 'user',
+  badges: [],
   stats: {
     totalGames: 0,
     totalWins: 0,

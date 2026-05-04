@@ -132,7 +132,7 @@ export const Home: React.FC = () => {
         className="pt-6 border-t border-white/5 text-center px-4"
       >
         <p className="text-[10px] text-slate-500 font-medium italic opacity-60 leading-relaxed uppercase tracking-widest">
-          "Boost Revelations Mastery"
+          "Boost Your Revelations Mastery"
         </p>
       </motion.div>
     </div>

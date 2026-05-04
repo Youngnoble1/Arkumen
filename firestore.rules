@@ -10,7 +10,7 @@ service cloud.firestore {
     // Fields:
     //   - uid: string (required, immutable)
     //   - username: string (required, max 50 chars)
-    //   - points: number (required, positive)
+    //   - xp: number (required, positive)
     //   - highestScore: number (required, positive)
     //   - arkerTitle: string (required)
     //   - rank: string (required)
@@ -53,10 +53,10 @@ service cloud.firestore {
     }
 
     function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'username', 'points', 'highestScore', 'arkerTitle', 'rank', 'level', 'createdAt', 'role']) &&
+      return data.keys().hasAll(['uid', 'username', 'xp', 'highestScore', 'arkerTitle', 'rank', 'level', 'createdAt', 'role']) &&
              data.uid == request.auth.uid &&
              data.username is string && data.username.size() <= 50 &&
-             data.points is number && data.points >= 0 &&
+             data.xp is number && data.xp >= 0 &&
              data.highestScore is number && data.highestScore >= 0 &&
              data.level is number && data.level >= 1 &&
              data.role in ['user', 'admin'];

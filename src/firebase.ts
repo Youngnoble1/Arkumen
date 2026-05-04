@@ -24,20 +24,8 @@ const databaseId = (firebaseConfig as any).firestoreDatabaseId;
 console.log("Initializing Firestore with Database ID:", databaseId || '(default)');
 
 export const db = databaseId 
-  ? initializeFirestore(app, { 
-      experimentalForceLongPolling: true,
-      localCache: {
-        kind: 'persistent',
-        cacheSizeBytes: CACHE_SIZE_UNLIMITED
-      }
-    }, databaseId)
-  : initializeFirestore(app, { 
-      experimentalForceLongPolling: true,
-      localCache: {
-        kind: 'persistent',
-        cacheSizeBytes: CACHE_SIZE_UNLIMITED
-      }
-    });
+  ? initializeFirestore(app, { experimentalForceLongPolling: true }, databaseId)
+  : initializeFirestore(app, { experimentalForceLongPolling: true });
 
 // Attempt to enable persistence for older SDK style compatibility if needed, 
 // though the initializeFirestore above handles it in newer SDKs.

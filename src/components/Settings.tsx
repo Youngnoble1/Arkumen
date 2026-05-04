@@ -81,7 +81,7 @@ export const Settings: React.FC = () => {
                </div>
                <div className="space-y-1">
                   <span className="text-[7px] text-slate-500 font-black uppercase tracking-[0.2em]">ACCESS LEVEL</span>
-                  <p className="text-md font-display text-arkumen-gold tracking-widest">{profile?.rank || 'NEOPHYTE'}</p>
+                  <p className="text-md font-display text-arkumen-gold tracking-widest">{profile?.rank || 'INITIATE'}</p>
                </div>
             </div>
           </div>

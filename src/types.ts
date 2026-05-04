@@ -10,7 +10,7 @@ export interface UserProfile {
   uid: string;
   username: string;
   photoURL?: string;
-  points: number;
+  xp: number;
   highestScore: number;
   favoriteCategory: string;
   arkerTitle: string;
@@ -19,9 +19,9 @@ export interface UserProfile {
   createdAt: string;
   lastDailyChallengeDate?: string;
   dailyChallengeStreak?: number;
-  badges?: any[];
+  badges?: string[];
   role?: 'user' | 'admin';
-  stats?: {
+  stats: {
     totalGames: number;
     totalWins: number;
     modeStats: Record<string, any>;

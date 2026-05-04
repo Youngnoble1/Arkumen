@@ -2,7 +2,7 @@ import { Question } from '../types';
 
 export const ARKUMEN_QUESTIONS_POOL: Question[] = [
   {
-    text: "According to the notes, how did Baby JESUS HIS PREEMINENCE communicate with Virgin Mary from the heart?",
+    text: "As taught by the Prophet, how did Baby JESUS HIS PREEMINENCE communicate with Virgin Mary from the heart?",
     options: ["Through spoken words", "Inaudibly", "Through crying", "Through hand gestures"],
     correctAnswer: 1,
     explanation: "Virgin Mary at times speaks to Baby JESUS HIS PREEMINENCE from the heart (inaudibly) and then Baby JESUS HIS PREEMINENCE would look at her and smile.",
@@ -86,7 +86,7 @@ export const ARKUMEN_QUESTIONS_POOL: Question[] = [
     difficulty: "Hard"
   },
   {
-    text: "The notes state that Moses' account of Genesis is:",
+    text: "The Prophet taught that Moses' account of Genesis is:",
     options: ["Historically perfect", "Founded upon error or erroneously published", "The only source of truth", "Written by Adam"],
     correctAnswer: 1,
     explanation: "Moses' own version of the Genesis account... are messages founded upon error or erroneously published messages.",
@@ -107,10 +107,10 @@ export const ARKUMEN_QUESTIONS_POOL: Question[] = [
     difficulty: "Hard"
   },
   {
-    text: "Which book of the Bible mentions the 'bottomless pit' and 'abyss' discussed in the notes?",
-    options: ["Genesis", "Exodus", "Revelation", "Levitikus"],
+    text: "Which of these scriptures speaks about the 'bottomless pit' or 'abyss' as taught by the Prophet?",
+    options: ["Psalm 23:4", "Matthew 7:13", "Revelation 9:1", "Revelation 2:1"],
     correctAnswer: 2,
-    explanation: "The bottomless pit of revelation 20... The abyss of revelation 9.",
+    explanation: "The abyss of revelation 9 and bottomless pit of revelation 20.",
     difficulty: "Medium"
   },
   {
@@ -135,7 +135,7 @@ export const ARKUMEN_QUESTIONS_POOL: Question[] = [
     difficulty: "Hard"
   },
   {
-    text: "According to the notes, when does a person become an 'elite'?",
+    text: "As taught by the Prophet, when does a person become an 'elite'?",
     options: ["When they become wealthy", "When they graduate from certain knowledge of supernatural realities", "When they are ordained a priest", "When they die"],
     correctAnswer: 1,
     explanation: "When you have become an elite is when the person has graduated from certain knowledge of supernatural realities.",
@@ -373,7 +373,7 @@ export const ARKUMEN_QUESTIONS_POOL: Question[] = [
     difficulty: "Hard"
   },
   {
-    text: "In the garden of Gethsemane, why did JESUS HIS PREEMINENCE 'cry' according to the notes?",
+    text: "In the garden of Gethsemane, why did JESUS HIS PREEMINENCE 'cry' as taught by the Prophet?",
     options: ["He was afraid to die", "Acting in the shoes of Lord Adam (the son in the fall)", "He was lonely", "He was in physical pain"],
     correctAnswer: 1,
     explanation: "When HE prayed in the garden of gethesemane... they are the things HE had to do in acting in the shoes of the son of GOD in the fall, in the shoes of LORD ADAM.",
@@ -429,7 +429,7 @@ export const ARKUMEN_QUESTIONS_POOL: Question[] = [
     difficulty: "Medium"
   },
   {
-    text: "According to the notes, what will Lucifer confess in the lake of fire?",
+    text: "As taught by the Prophet, what will Lucifer confess in the lake of fire?",
     options: ["That he is the true king", "'I believe in GOD, the CREATOR of the Havens & Earth'", "Nothing", "That Mary is his queen"],
     correctAnswer: 1,
     explanation: "Lucifer shall say I believe in GOD, the CREATOR of the Havens & Earth.",
@@ -464,7 +464,7 @@ export const ARKUMEN_QUESTIONS_POOL: Question[] = [
     difficulty: "Medium"
   },
   {
-    text: "What is 'Gilgal' in the context of the notes?",
+    text: "What is 'Gilgal' in the context of the Prophet's teachings?",
     options: ["A physical city", "A stage/transcend of metamorphosis", "A type of food", "A name of an angel"],
     correctAnswer: 1,
     explanation: "Anyone in gilgal (one of the transcends lf metamorphosis) is not grown up enough to meditate in a Eucharistic message.",
@@ -520,7 +520,7 @@ export const ARKUMEN_QUESTIONS_POOL: Question[] = [
     difficulty: "Medium"
   },
   {
-    text: "According to the notes, why was JESUS HIS PREEMINENCE's body able to repel houseflies?",
+    text: "As taught by the Prophet, why was JESUS HIS PREEMINENCE's body able to repel houseflies?",
     options: ["He used oils", "Because of His supernatural physical body", "He had a fan", "Flies were afraid of Him"],
     correctAnswer: 1,
     explanation: "The said LORD'S PHYSICAL BODY shall repel houseflies afar off and the fragrance from HIM alone shall deodorise unpleasant smell from a distance.",
@@ -554,13 +554,7 @@ export const ARKUMEN_QUESTIONS_POOL: Question[] = [
     explanation: "These are the beasts which ye shall eat: the ox, the sheep, and the goat.",
     difficulty: "Easy"
   },
-  {
-    text: "Why is the swine (pig) forbidden?",
-    options: ["It is too expensive", "It divides the hoof but does not chew the cud", "It is too fast to catch", "It was not in the ark"],
-    correctAnswer: 1,
-    explanation: "And the swine, because it divideth the hoof, yet cheweth not the cud, it is unclean unto you.",
-    difficulty: "Easy"
-  },
+
   {
     text: "What happens to the body when 'forbidden' foods are eaten?",
     options: ["You get stronger", "The body is defiled", "You lose weight", "Nothing happens"],
@@ -583,7 +577,7 @@ export const ARKUMEN_QUESTIONS_POOL: Question[] = [
     difficulty: "Medium"
   },
   {
-    text: "What is 'another way' to defile a body mentioned in the notes?",
+    text: "What is 'another way' to defile a body as taught by the Prophet?",
     options: ["Sleeping too much", "Through incision", "Exercising", "Drinking water"],
     correctAnswer: 1,
     explanation: "Another way to defile a body is through incision.",
@@ -625,7 +619,7 @@ export const ARKUMEN_QUESTIONS_POOL: Question[] = [
     difficulty: "Easy"
   },
   {
-    text: "According to the notes, JESUS HIS PREEMINENCE's Physical Body is the most noble and highest...",
+    text: "As taught by the Prophet, JESUS HIS PREEMINENCE's Physical Body is the most noble and highest...",
     options: ["Architect", "Fashionista", "Fisherman", "Scholar"],
     correctAnswer: 1,
     explanation: "THEREFORE, JESUS HIS PREEMINENCE IS THE MOST NOBLE & HIGHEST FASHIONISTA.",
@@ -639,7 +633,7 @@ export const ARKUMEN_QUESTIONS_POOL: Question[] = [
     difficulty: "Medium"
   },
   {
-    text: "How many years did JESUS HIS PREEMINENCE stay on Earth according to the notes?",
+    text: "How many years did JESUS HIS PREEMINENCE stay on Earth as taught by the Prophet?",
     options: ["30", "33 and a half", "40", "50"],
     correctAnswer: 1,
     explanation: "Do you know that in the thirty-three and a half years of JESUS HIS PREEMINENCE stay here, HE sang?",

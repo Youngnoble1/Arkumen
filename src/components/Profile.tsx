@@ -6,6 +6,7 @@ import { auth, googleProvider } from '../firebase';
 import { signOut, signInWithPopup } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
+import { getXPProgress, RANK_LEVELS } from '../lib/rankings';
 
 export const Profile: React.FC = () => {
   const { user, profile, loading, isAuthReady, isGuest } = useFirebase();
@@ -57,11 +58,13 @@ export const Profile: React.FC = () => {
   }
 
   const stats = [
-    { label: 'Royalty Points', value: profile.points.toLocaleString(), icon: Zap, color: 'text-arkumen-gold' },
-    { label: 'Highest Score', value: profile.highestScore.toLocaleString(), icon: Target, color: 'text-blue-500' },
+    { label: 'Experience (XP)', value: (profile.xp || 0).toLocaleString(), icon: Brain, color: 'text-blue-400' },
     { label: 'Daily Streak', value: profile.dailyChallengeStreak || 0, icon: TrendingUp, color: 'text-orange-500' },
     { label: 'Rank Tier', value: profile.rank, icon: Award, color: 'text-purple-500' },
   ];
+
+  const currentXPProgress = getXPProgress(profile.xp || 0, profile.level || 1);
+  const nextRank = RANK_LEVELS.find(r => r.level === (profile.level || 1) + 1);
 
   return (
     <div className="min-h-screen bg-arkumen-bg pb-20">
@@ -109,13 +112,39 @@ export const Profile: React.FC = () => {
           </div>
 
           <div className="space-y-4">
+            {/* Level Progress */}
+            <div className="w-full space-y-3 pt-6 mb-4">
+              <div className="flex justify-between items-end px-2">
+                <div className="text-left">
+                  <span className="text-[9px] text-slate-500 font-black uppercase tracking-[0.2em] block mb-1">CURRENT MASTERY</span>
+                  <span className="text-arkumen-gold font-display text-[10px] tracking-widest uppercase">LEVEL {profile.level}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-[9px] text-slate-500 font-black uppercase tracking-[0.2em] block mb-1">NEXT REVELATION</span>
+                  <span className="text-slate-300 font-display text-[10px] tracking-widest uppercase">{nextRank ? nextRank.title : 'MAX LEVEL'}</span>
+                </div>
+              </div>
+              <div className="h-2 w-full bg-slate-900 border border-white/5 rounded-full overflow-hidden p-0.5 shadow-inner">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${currentXPProgress}%` }}
+                  className="h-full bg-gradient-to-r from-arkumen-gold/60 to-arkumen-gold rounded-full relative shadow-[0_0_15px_rgba(212,175,55,0.4)]"
+                >
+                  <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                </motion.div>
+              </div>
+              <div className="flex justify-center">
+                 <span className="text-[8px] text-slate-600 font-black uppercase tracking-[0.4em]">{Math.floor(currentXPProgress)}% ALIGNED</span>
+              </div>
+            </div>
+
             <div>
               <h2 className="text-4xl logo-text mb-1 lowercase">{profile.username}</h2>
               <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.4em] opacity-40">IDENTIFIED ELITE NOBLE</p>
             </div>
             
             <div className="inline-flex flex-col items-center">
-              <span className="text-[7px] text-arkumen-gold/50 font-bold uppercase tracking-[0.3em] mb-1">ASCENSION TITLE</span>
+              <span className="text-[7px] text-arkumen-gold/50 font-bold uppercase tracking-[0.3em] mb-1">RANK TITLE</span>
               <div className="px-6 py-2 rounded-2xl bg-arkumen-gold text-slate-950 font-display text-[10px] tracking-[0.2em] uppercase shadow-[0_0_30px_rgba(212,175,55,0.3)]">
                 {profile.arkerTitle}
               </div>
@@ -157,20 +186,20 @@ export const Profile: React.FC = () => {
           
           <div className="grid grid-cols-4 gap-4">
             {[
-              { id: 'novice', label: 'NOVICE', icon: Shield, active: true },
-              { id: 'veteran', label: 'VETERAN', icon: Shield, active: false },
-              { id: 'legendary', label: 'LEGEND', icon: Zap, active: false },
-              { id: 'highscorer', label: 'ELITE', icon: Target, active: true },
-              { id: 'streak', label: 'STREAK', icon: Zap, active: false },
-              { id: 'daily', label: 'DAILY', icon: Calendar, active: false },
-              { id: 'category', label: 'MASTER', icon: Award, active: true },
-              { id: 'scholar', label: 'SCHOLAR', icon: Award, active: true },
+              { id: 'Scholar', label: 'SCHOLAR', icon: Brain, active: (profile.xp || 0) > 500, color: 'text-blue-400', glow: 'bg-blue-500/20', border: 'border-blue-500/40' },
+              { id: 'Resilience', label: 'RESILIENCE', icon: Shield, active: profile.badges?.includes('Resilience'), color: 'text-emerald-400', glow: 'bg-emerald-500/20', border: 'border-emerald-500/40' },
+              { id: 'Elite', label: 'ELITE', icon: Crown, active: (profile.xp || 0) > 25000, color: 'text-arkumen-gold', glow: 'bg-arkumen-gold/20', border: 'border-arkumen-gold/40' },
+              { id: 'Arkumen', label: 'ARKUMEN', icon: Zap, active: profile.rank === 'Arkumen', color: 'text-red-400', glow: 'bg-red-500/20', border: 'border-red-500/40' },
+              { id: 'Savant', label: 'SAVANT', icon: Brain, active: (profile.xp || 0) > 5000, color: 'text-purple-400', glow: 'bg-purple-500/20', border: 'border-purple-500/40' },
+              { id: 'Luminary', label: 'LUMINARY', icon: Award, active: (profile.xp || 0) > 10000, color: 'text-yellow-400', glow: 'bg-yellow-500/20', border: 'border-yellow-500/40' },
+              { id: 'Adept', label: 'ADEPT', icon: Target, active: (profile.xp || 0) > 2000, color: 'text-orange-400', glow: 'bg-orange-500/20', border: 'border-orange-500/40' },
+              { id: 'Initiate', label: 'INITIATE', icon: Sparkles, active: true, color: 'text-cyan-400', glow: 'bg-cyan-500/20', border: 'border-cyan-500/40' },
             ].map((badge, i) => (
               <div key={i} className="flex flex-col items-center gap-2 group">
                 <div className={clsx(
                   "w-12 h-12 rounded-xl flex items-center justify-center border transition-all relative overflow-hidden",
                   badge.active 
-                    ? "bg-slate-800/50 border-arkumen-gold/40 text-arkumen-gold shadow-[0_0_15px_rgba(212,175,55,0.1)]" 
+                    ? `bg-slate-800/50 ${badge.border} ${badge.color} shadow-[0_0_15px_rgba(255,255,255,0.05)]` 
                     : "bg-slate-900/50 border-white/5 text-slate-800 opacity-20"
                 )}>
                   <badge.icon size={22} className="relative z-10" />
@@ -178,7 +207,7 @@ export const Profile: React.FC = () => {
                     <motion.div 
                       animate={{ opacity: [0.1, 0.3, 0.1] }}
                       transition={{ duration: 2, repeat: Infinity }}
-                      className="absolute inset-0 bg-arkumen-gold/20"
+                      className={clsx("absolute inset-0", badge.glow)}
                     />
                   )}
                 </div>

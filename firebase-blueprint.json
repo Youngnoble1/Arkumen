@@ -7,7 +7,7 @@
       "properties": {
         "uid": { "type": "string", "description": "Firebase Auth UID" },
         "username": { "type": "string", "description": "Display name" },
-        "points": { "type": "number", "description": "Total accumulated points" },
+        "xp": { "type": "number", "description": "Total accumulated experience" },
         "highestScore": { "type": "number", "description": "Highest score in a single game" },
         "arkerTitle": { "type": "string", "description": "AI-generated title" },
         "rank": { "type": "string", "description": "Current rank tier" },
@@ -18,7 +18,7 @@
         "badges": { "type": "array", "items": { "type": "string" } },
         "role": { "type": "string", "enum": ["user", "admin"] }
       },
-      "required": ["uid", "username", "points", "highestScore", "arkerTitle", "rank", "level", "createdAt"]
+      "required": ["uid", "username", "xp", "highestScore", "arkerTitle", "rank", "level", "createdAt"]
     },
     "GameResult": {
       "title": "Game Result",

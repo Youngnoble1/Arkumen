@@ -9,6 +9,7 @@ import { Question, GameResult, UserProfile } from '../types';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { doc, updateDoc, collection, addDoc, increment } from 'firebase/firestore';
 import { clsx } from 'clsx';
+import { calculateRank } from '../lib/rankings';
 
 const QUESTION_TIME = 20;
 
@@ -35,6 +36,7 @@ export const Quiz: React.FC = () => {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
+  const [earnedXPState, setEarnedXPState] = useState<number | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const currentQuestion = questions[currentIndex];
@@ -151,11 +153,16 @@ export const Quiz: React.FC = () => {
     setIsAnalyzing(true);
     
     try {
+      const numCorrect = userAnswers.filter((ans, idx) => ans === questions[idx]?.correctAnswer).length;
+      const baseXP = 50;
+      const correctXP = numCorrect * 10;
+      const earnedXP = baseXP + correctXP;
+
       // AI Analysis
       const analysis = await analyzePerformance(
         score,
         maxStreak,
-        profile?.rank || 'Neophyte',
+        profile?.rank || 'Initiate',
         score > 5000 ? 'Victory' : 'Defeat',
         questions.length,
         mode
@@ -187,38 +194,47 @@ export const Quiz: React.FC = () => {
               ...result,
               uid: user.uid,
               timestamp: new Date().toISOString(),
-              mode
+              mode,
+              earnedXP
             });
           } catch (e) {
             console.error("Failed to save result to Firestore", e);
           }
         }
 
+        const newTotalGames = (profile.stats?.totalGames || 0) + 1;
+        const newTotalWins = (profile.stats?.totalWins || 0) + (analysis.grade === 'S' || analysis.grade === 'A' ? 1 : 0);
+        const newTotalXP = (profile.xp || 0) + earnedXP;
+
+        const updatedStats = {
+          ...profile.stats,
+          totalGames: newTotalGames,
+          totalWins: newTotalWins,
+        };
+
+        const tempProfileForRanking = {
+          ...profile,
+          xp: newTotalXP,
+          stats: updatedStats
+        } as UserProfile;
+
+        const { level: newLevel, title: newRank } = calculateRank(tempProfileForRanking);
+
         const updates: any = {
-          points: (profile.points || 0) + score,
-          'stats.totalGames': (profile.stats?.totalGames || 0) + 1,
+          xp: newTotalXP,
+          level: newLevel,
+          rank: newRank,
+          'stats.totalGames': newTotalGames,
+          'stats.totalWins': newTotalWins,
         };
 
         if (score > (profile.highestScore || 0)) {
           updates.highestScore = score;
         }
 
-        // Update rank based on points
-        const newTotalPoints = (profile.points || 0) + score;
-        let newRank = profile.rank;
-        if (newTotalPoints > 1000000) newRank = 'Prophet';
-        else if (newTotalPoints > 500000) newRank = 'Evangelist';
-        else if (newTotalPoints > 250000) newRank = 'Apostle';
-        else if (newTotalPoints > 100000) newRank = 'Disciple';
-        else if (newTotalPoints > 50000) newRank = 'Proselyte';
-        else if (newTotalPoints > 15000) newRank = 'Seeker';
-        else if (newTotalPoints > 5000) newRank = 'Initiate';
-        
         if (newRank !== profile.rank) {
-          updates.rank = newRank;
-          updates.level = (profile.level || 1) + 1;
           // Generate new title on rank up
-          const newTitle = await generateArkerTitle(profile.username, newTotalPoints, score, newRank, user?.email || undefined);
+          const newTitle = await generateArkerTitle(profile.username, newTotalXP, score, newRank, user?.email || undefined);
           updates.arkerTitle = newTitle;
         }
 
@@ -229,6 +245,7 @@ export const Quiz: React.FC = () => {
         }
 
         await updateProfile(updates);
+        setEarnedXPState(earnedXP);
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'results');
@@ -289,7 +306,7 @@ export const Quiz: React.FC = () => {
             )}
           </motion.div>
           
-          <h2 className="text-5xl md:text-6xl heading-arkumen mb-4">TRIAL COMPLETE</h2>
+          <h2 className="text-4xl md:text-6xl heading-arkumen mb-4 px-2 !tracking-tight">TRIAL COMPLETE</h2>
           {(gameResult?.grade === 'S' || gameResult?.grade === 'A') && (
             <p className="text-arkumen-gold font-luxury text-2xl italic mb-6 animate-pulse">
               "Congrats Winner, fine display of revelations mastery. Keep up the streak."
@@ -299,7 +316,12 @@ export const Quiz: React.FC = () => {
           <div className="grid grid-cols-2 gap-8 mb-12">
             <div className="stat-card">
               <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest block mb-2">Final Score</span>
-              <span className="text-5xl font-bold text-arkumen-gold tracking-tighter">{score.toLocaleString()}</span>
+              <div className="flex flex-col items-center">
+                <span className="text-5xl font-bold text-arkumen-gold tracking-tighter">{score.toLocaleString()}</span>
+                {earnedXPState !== null && (
+                  <span className="text-[10px] text-green-500 font-black tracking-[0.2em] mt-1">+{earnedXPState} XP EARNED</span>
+                )}
+              </div>
             </div>
             <div className="stat-card">
               <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest block mb-2">Max Streak</span>
@@ -463,10 +485,10 @@ export const Quiz: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-col items-end gap-1">
+            <div className="flex flex-col items-end gap-1">
             <div className="flex items-center gap-2">
                <Zap size={10} className="text-arkumen-gold" />
-               <span className="hud-label">ROYALTY ACCUMULATED</span>
+               <span className="hud-label">MASTERY XP EARNED</span>
             </div>
             <motion.span 
               key={score}

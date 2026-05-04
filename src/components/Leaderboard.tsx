@@ -37,8 +37,8 @@ const LeaderboardItem = React.memo(({ user, index, isCurrentPlayer }: { user: Us
     </div>
 
     <div className="text-right">
-      <span className="text-lg font-display text-arkumen-gold tracking-tighter leading-none">{user.points.toLocaleString()}</span>
-      <p className="text-[7px] text-slate-600 font-black uppercase tracking-[0.2em] mt-0.5 text-right">POINTS</p>
+      <span className="text-lg font-display text-arkumen-gold tracking-tighter leading-none">{(user.xp || 0).toLocaleString()}</span>
+      <p className="text-[7px] text-slate-600 font-black uppercase tracking-[0.2em] mt-0.5 text-right">XP</p>
     </div>
   </motion.div>
 ));
@@ -51,7 +51,7 @@ export const Leaderboard: React.FC = () => {
   useEffect(() => {
     const q = query(
       collection(db, 'users'),
-      orderBy('points', 'desc'),
+      orderBy('xp', 'desc'),
       limit(50)
     );
 
@@ -82,8 +82,8 @@ export const Leaderboard: React.FC = () => {
     <div className="min-h-screen bg-arkumen-bg pb-20">
       <header className="fixed top-0 left-0 right-0 z-50 bg-[#020617]/95 backdrop-blur-3xl px-6 py-5 flex items-center justify-between border-b border-white/5">
         <div className="flex flex-col">
-          <span className="text-[8px] text-slate-500 font-black uppercase tracking-[0.4em] opacity-60">ASCENSION RECORD</span>
-          <h1 className="text-arkumen-gold font-display text-sm tracking-widest uppercase">Hall of Immortals</h1>
+          <span className="text-[8px] text-slate-500 font-black uppercase tracking-[0.4em] opacity-60">LEADERBOARD</span>
+          <h1 className="text-arkumen-gold font-display text-sm tracking-widest uppercase">Hall of Legends</h1>
         </div>
         <div className="flex items-center gap-2">
            <Trophy size={16} className="text-arkumen-gold opacity-50" />
@@ -133,7 +133,7 @@ export const Leaderboard: React.FC = () => {
                     </div>
                     <div className="text-center w-full">
                        <p className="text-[10px] font-display text-white truncate px-1 uppercase tracking-wider">{u.username}</p>
-                       <p className="text-arkumen-gold font-bold text-xs mt-1">{u.points.toLocaleString()}</p>
+                       <p className="text-arkumen-gold font-bold text-xs mt-1">{(u.xp || 0).toLocaleString()} XP</p>
                     </div>
                     <div className={clsx(
                       "w-full bg-slate-900/50 backdrop-blur-md rounded-t-xl border-x border-t border-white/5 mt-3 transition-all",

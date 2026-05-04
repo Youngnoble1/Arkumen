@@ -306,7 +306,7 @@ export async function generateDailyChallenge(date: string): Promise<DailyChallen
   };
 }
 
-export async function generateArkerTitle(username: string, points: number, score: number, category: string, email?: string): Promise<string> {
+export async function generateArkerTitle(username: string, xp: number, score: number, category: string, email?: string): Promise<string> {
   // Special case for the Architect
   if (email === "nonsookoli757@gmail.com") {
     return "The Architect";
@@ -315,10 +315,10 @@ export async function generateArkerTitle(username: string, points: number, score
   const response = await ai.models.generateContent({
     model: "models/gemini-3-flash-preview",
     contents: `Generate a short, epic Arker Title (2-4 words) for '${username}'.
-Stats: ${points} pts, high score ${score}.
+Stats: ${xp} XP, high score ${score}.
 Rank: ${category}.
-Points-based tiers: 0-1k: Neophyte, 1k-5k: Initiate, 5k-15k: Seeker, 15k-50k: Proselyte, 50k-100k: Disciple, 100k-250k: Apostle, 250k-500k: Evangelist, 500k-1m: Prophet, 1m-2.5m: High Priest, 2.5m-5m: Elder, 5m-10m: Legend, 10m+: Eternal.
-RULES: Use "JESUS HIS PREEMINENCE" and "GOD". No "Infinite Polymath".
+XP-based tiers: 0-500: Initiate, 501-2000: Scholar, 2001-5000: Adept, 5001-10000: Savant, 10001-25000: Luminary, 25001+: Arkumen.
+RULES: Use "JESUS HIS PREEMINENCE" and "GOD". No "Infinite Polymath". Always refer to revelations as being "as taught by the Prophet" rather than "from the notes".
 Return ONLY the title string.`,
     config: {
       thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
@@ -345,9 +345,9 @@ export async function analyzePerformance(
   const percentage = (score / (totalQuestions * 1000)) * 100;
   
   const prompt = `Analyze Arker performance.
-Mode: ${mode}, Category: ${category}, Outcome: ${result}, Score: ${score}, Streak: ${streak}, Accuracy: ${percentage.toFixed(1)}%.
+Mode: ${mode}, Category: ${category}, Outcome: ${result}, XP Earned: ${score}, Streak: ${streak}, Accuracy: ${percentage.toFixed(1)}%.
 Voice: Grand Master.
-RULES: Use "JESUS HIS PREEMINENCE" and "GOD". Refer to player as Arker.
+RULES: Use "JESUS HIS PREEMINENCE" and "GOD". Refer to player as Arker. Always refer to revelations as being "as taught by the Prophet" rather than "from the notes".
 JSON: Grade (S,A,B,C,D,F), Message (thematic), Strengths (2-3), Weaknesses (1-2), NextSteps.`;
 
   const response = await ai.models.generateContent({

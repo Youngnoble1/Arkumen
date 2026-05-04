@@ -17,9 +17,11 @@ import { db, OperationType, handleFirestoreError } from '../firebase';
 import { Question } from '../types';
 import { generateQuestions } from '../services/geminiService';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Users, Zap, Crown, Timer, Home, ArrowRight, CheckCircle2, XCircle } from 'lucide-react';
+import { Trophy, Users, Zap, Crown, Timer, Home, ArrowRight, CheckCircle2, XCircle, Settings } from 'lucide-react';
 import { clsx } from 'clsx';
 import confetti from 'canvas-confetti';
+import { calculateRank } from '../lib/rankings';
+import { UserProfile } from '../types';
 
 interface BattlePlayer {
   uid: string;
@@ -36,6 +38,10 @@ interface BattleRoom {
   status: 'waiting' | 'playing' | 'finished';
   players: BattlePlayer[];
   questions: Question[];
+  hostId: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+  questionCount: number;
+  timeLimit: number;
   startTime?: any;
   createdAt: any;
 }
@@ -58,6 +64,11 @@ export const Battle: React.FC = () => {
   const [gameState, setGameState] = useState<'lobby' | 'playing' | 'results'>('lobby');
 
   const [scorePulse, setScorePulse] = useState<string | null>(null);
+  const [wasTrailingBy50Percent, setWasTrailingBy50Percent] = useState(false);
+  const [hasUpdatedProfile, setHasUpdatedProfile] = useState(false);
+  const [earnedXPState, setEarnedXPState] = useState<number | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
 
   const playSound = (type: 'success' | 'fail' | 'victory') => {
     const soundEnabled = localStorage.getItem('arkumen_sound_enabled') !== 'false';
@@ -91,6 +102,10 @@ export const Battle: React.FC = () => {
           const questions = await generateQuestions('General Knowledge', 10, 'Medium');
           const newRoom = {
             status: 'waiting',
+            hostId: user.uid,
+            difficulty: 'Medium',
+            questionCount: 10,
+            timeLimit: 30,
             players: [{
               uid: user.uid,
               username: profile.username,
@@ -135,6 +150,7 @@ export const Battle: React.FC = () => {
             
             if (roomData.status === 'playing') {
               setGameState('playing');
+              setTimeLeft(roomData.timeLimit || 30);
             } else if (roomData.status === 'finished') {
               setGameState('results');
             }
@@ -216,6 +232,13 @@ export const Battle: React.FC = () => {
     // Check if all finished
     const allFinished = newPlayers.every(p => p.isFinished);
 
+    // Check for trailing condition
+    const me = newPlayers.find(p => p.uid === user.uid);
+    const opponent = newPlayers.find(p => p.uid !== user.uid);
+    if (me && opponent && opponent.score >= (me.score * 2) && opponent.score > 0) {
+      setWasTrailingBy50Percent(true);
+    }
+
     try {
       await updateDoc(doc(db, 'rooms', room.id), {
         players: newPlayers,
@@ -242,9 +265,202 @@ export const Battle: React.FC = () => {
       if (currentIndex < room.questions.length - 1) {
         setCurrentIndex(prev => prev + 1);
         setSelectedAnswer(null);
-        setTimeLeft(30);
+        setTimeLeft(room.timeLimit || 30);
       }
     }, 1500);
+  };
+
+  // Award XP and update profile on results
+  useEffect(() => {
+    if (gameState === 'results' && !hasUpdatedProfile && profile && user && room) {
+      const me = room.players.find(p => p.uid === user.uid);
+      const opponent = room.players.find(p => p.uid !== user.uid);
+      if (!me) return;
+
+      const isWinner = !opponent || me.score > opponent.score;
+      const isDraw = opponent && me.score === opponent.score;
+      
+      const baseXP = isWinner ? 100 : (isDraw ? 75 : 50);
+      const performanceXP = Math.floor(me.score / 100);
+      const earnedXP = baseXP + performanceXP;
+
+      const currentBadges = profile.badges || [];
+      let earnedResilience = false;
+      if (isWinner && wasTrailingBy50Percent && !currentBadges.includes('Resilience')) {
+        earnedResilience = true;
+      }
+
+      const newTotalGames = (profile.stats?.totalGames || 0) + 1;
+      const newTotalWins = (profile.stats?.totalWins || 0) + (isWinner ? 1 : 0);
+      const newTotalXP = (profile.xp || 0) + earnedXP;
+      
+      const updatedStats = {
+        ...profile.stats,
+        totalGames: newTotalGames,
+        totalWins: newTotalWins,
+      };
+
+      const updatedBadges = earnedResilience ? [...currentBadges, 'Resilience'] : currentBadges;
+
+      const tempProfileForRanking = {
+        ...profile,
+        xp: newTotalXP,
+        stats: updatedStats
+      } as UserProfile;
+
+      const { level: newLevel, title: newRank } = calculateRank(tempProfileForRanking);
+
+      const updates: any = {
+        xp: newTotalXP,
+        level: newLevel,
+        rank: newRank,
+        badges: updatedBadges,
+        'stats.totalGames': newTotalGames,
+        'stats.totalWins': newTotalWins,
+      };
+
+      if (me.score > (profile.highestScore || 0)) {
+        updates.highestScore = me.score;
+      }
+
+      const applyUpdates = async () => {
+        try {
+          const userRef = doc(db, 'users', user.uid);
+          await updateDoc(userRef, updates);
+          setHasUpdatedProfile(true);
+          setEarnedXPState(earnedXP);
+          if (isWinner) playSound('victory');
+        } catch (e) {
+          console.error("Failed to update battle results to profile", e);
+        }
+      };
+
+      applyUpdates();
+    }
+  }, [gameState, hasUpdatedProfile, profile, user, room, wasTrailingBy50Percent]);
+
+  const updateRoomSettings = async (settings: { questionCount: number, timeLimit: number, difficulty: 'Easy' | 'Medium' | 'Hard' }) => {
+    if (!room || !user || room.hostId !== user.uid) return;
+    setIsUpdatingSettings(true);
+    try {
+      const newQuestions = await generateQuestions('General Knowledge', settings.questionCount, settings.difficulty);
+      await updateDoc(doc(db, 'rooms', room.id), {
+        ...settings,
+        questions: newQuestions
+      });
+      setIsSettingsOpen(false);
+    } catch (e) {
+      console.error("Failed to update room settings", e);
+    } finally {
+      setIsUpdatingSettings(false);
+    }
+  };
+
+  const SettingsModal = () => {
+    const [localSettings, setLocalSettings] = useState({
+      questionCount: room?.questionCount || 10,
+      timeLimit: room?.timeLimit || 30,
+      difficulty: room?.difficulty || 'Medium'
+    });
+
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-md">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="arena-card w-full max-w-sm p-8 space-y-8 border-arkumen-gold/30"
+        >
+          <div className="text-center space-y-2">
+            <h3 className="font-display text-xl text-arkumen-gold tracking-widest uppercase">Duel Parameters</h3>
+            <p className="text-[9px] text-slate-500 font-black tracking-[0.3em] uppercase">Configure the battlefield</p>
+          </div>
+
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Question Count</label>
+              <div className="flex gap-2">
+                {[5, 10, 15, 20].map(count => (
+                  <button
+                    key={count}
+                    type="button"
+                    onClick={() => setLocalSettings(s => ({ ...s, questionCount: count }))}
+                    className={clsx(
+                      "flex-1 py-3 rounded-xl border text-xs font-display transition-all",
+                      localSettings.questionCount === count 
+                        ? "bg-arkumen-gold text-slate-950 border-arkumen-gold shadow-[0_0_15px_rgba(212,175,55,0.3)]" 
+                        : "bg-slate-900 border-white/5 text-slate-500 hover:border-white/20"
+                    )}
+                  >
+                    {count}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Time Limit (Seconds)</label>
+              <div className="flex gap-2">
+                {[15, 20, 30, 45].map(time => (
+                  <button
+                    key={time}
+                    type="button"
+                    onClick={() => setLocalSettings(s => ({ ...s, timeLimit: time }))}
+                    className={clsx(
+                      "flex-1 py-3 rounded-xl border text-xs font-display transition-all",
+                      localSettings.timeLimit === time 
+                        ? "bg-arkumen-gold text-slate-950 border-arkumen-gold shadow-[0_0_15px_rgba(212,175,55,0.3)]" 
+                        : "bg-slate-900 border-white/5 text-slate-500 hover:border-white/20"
+                    )}
+                  >
+                    {time}s
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Intensity Tier</label>
+              <div className="flex gap-2">
+                {['Easy', 'Medium', 'Hard'].map(diff => (
+                  <button
+                    key={diff}
+                    type="button"
+                    onClick={() => setLocalSettings(s => ({ ...s, difficulty: diff as any }))}
+                    className={clsx(
+                      "flex-1 py-3 rounded-xl border text-[10px] font-display transition-all",
+                      localSettings.difficulty === diff 
+                        ? "bg-arkumen-gold text-slate-950 border-arkumen-gold shadow-[0_0_15px_rgba(212,175,55,0.3)]" 
+                        : "bg-slate-900 border-white/5 text-slate-500 hover:border-white/20"
+                    )}
+                  >
+                    {diff.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={() => setIsSettingsOpen(false)}
+              className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest bg-slate-900 text-slate-500 rounded-2xl border border-white/5 hover:bg-slate-800 transition-all"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => updateRoomSettings(localSettings)}
+              disabled={isUpdatingSettings}
+              className="flex-2 py-4 text-[10px] font-black uppercase tracking-widest bg-arkumen-gold text-slate-950 rounded-2xl shadow-[0_0_30px_rgba(212,175,55,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {isUpdatingSettings && <div className="w-3 h-3 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>}
+              Apply Revelation
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
   };
 
   if (loading || !room) {
@@ -279,20 +495,20 @@ export const Battle: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-4">
-           {gameState === 'playing' && (
+            {gameState === 'playing' && room && (
               <div className="hud-circle relative group">
                 <svg className="absolute inset-0 w-full h-full -rotate-90">
                   <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-white/5" />
                   <motion.circle
                     cx="24" cy="24" r="21" fill="none" stroke="currentColor" strokeWidth="2.5"
                     strokeDasharray="131.9"
-                    strokeDashoffset={131.9 * (1 - timeLeft / 30)}
+                    strokeDashoffset={131.9 * (1 - timeLeft / (room.timeLimit || 30))}
                     className="text-arkumen-gold"
                   />
                 </svg>
                 <span className="text-lg font-display text-white">{timeLeft}</span>
               </div>
-           )}
+            )}
            <div className="w-10 h-10 rounded-full bg-slate-900 border border-white/5 flex items-center justify-center relative shadow-inner">
               <Zap size={18} className="text-arkumen-gold opacity-50" />
               <div className="absolute inset-0 bg-arkumen-gold/5 animate-pulse rounded-full"></div>
@@ -318,8 +534,27 @@ export const Battle: React.FC = () => {
                   <Users size={48} className="text-arkumen-gold mx-auto mb-4 opacity-40" />
                 </motion.div>
                 <h2 className="text-4xl logo-text">THE CITADEL</h2>
-                <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.5em] animate-pulse">Scanning for Noble Arkers...</p>
+                <div className="flex flex-col items-center gap-2">
+                   <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.5em] animate-pulse">Scanning for Noble Arkers...</p>
+                   {room && (
+                     <div className="flex items-center gap-4 mt-2">
+                       <span className="text-[8px] text-arkumen-gold/60 font-black tracking-widest uppercase border border-arkumen-gold/20 px-2 py-1 rounded">
+                         {room.difficulty} • {room.questionCount} Questions • {room.timeLimit}s
+                       </span>
+                       {room.hostId === user?.uid && (
+                         <button 
+                           onClick={() => setIsSettingsOpen(true)}
+                           className="p-2 bg-slate-900 border border-white/5 rounded-xl hover:bg-slate-800 hover:border-arkumen-gold/30 transition-all text-slate-400 hover:text-arkumen-gold"
+                         >
+                           <Settings size={14} />
+                         </button>
+                       )}
+                     </div>
+                   )}
+                </div>
               </div>
+
+              {isSettingsOpen && <SettingsModal />}
 
               <div className="space-y-4">
                 {room.players.map((p, i) => (
@@ -553,7 +788,7 @@ export const Battle: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                <h2 className="text-5xl md:text-6xl heading-arkumen">DUEL ENDED</h2>
+                <h2 className="text-4xl md:text-6xl heading-arkumen px-2 !tracking-tight">DUEL ENDED</h2>
                 <div className="flex items-center justify-center gap-3">
                    <div className="h-[1px] w-8 bg-arkumen-gold/30"></div>
                    <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.5em]">TRIAL STANDINGS</p>
@@ -593,11 +828,35 @@ export const Battle: React.FC = () => {
                     </div>
                     <div className="text-right">
                       <p className="text-3xl font-bold text-arkumen-gold tracking-tighter">{p.score}</p>
-                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">ROYALTY</p>
+                      <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">SCORE</p>
+                      {p.uid === user?.uid && earnedXPState !== null && (
+                        <p className="text-[8px] text-green-500 font-black uppercase tracking-widest mt-1">+{earnedXPState} XP</p>
+                      )}
                     </div>
                   </motion.div>
                 ))}
               </div>
+
+              {/* Performance Stats Overlay */}
+              {profile && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6 }}
+                  className="grid grid-cols-2 gap-4 mt-6"
+                >
+                  <div className="arena-card p-4 border-white/5 bg-slate-900/40">
+                    <span className="text-[8px] text-slate-600 font-black uppercase tracking-[0.2em] block mb-1">TOTAL BATTLES</span>
+                    <span className="text-xl font-display text-white">{profile.stats?.totalGames || 0}</span>
+                  </div>
+                  <div className="arena-card p-4 border-white/5 bg-slate-900/40">
+                    <span className="text-[8px] text-slate-600 font-black uppercase tracking-[0.2em] block mb-1">WIN RATIO</span>
+                    <span className="text-xl font-display text-arkumen-gold">
+                      {profile.stats?.totalGames ? Math.round(((profile.stats?.totalWins || 0) / profile.stats.totalGames) * 100) : 0}%
+                    </span>
+                  </div>
+                </motion.div>
+              )}
 
               <div className="pt-6">
                 <button
