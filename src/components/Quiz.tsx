@@ -17,7 +17,7 @@ const QUESTION_TIME = 20;
 const sounds = {
   success: new Audio('https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3'),
   fail: new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3'),
-  victory: new Audio('https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3')
+  victory: new Audio('https://assets.mixkit.co/active_storage/sfx/467/467-preview.mp3') // More triumphant fanfare
 };
 
 export const Quiz: React.FC = () => {
@@ -38,6 +38,7 @@ export const Quiz: React.FC = () => {
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [earnedXPState, setEarnedXPState] = useState<number | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [failedCount, setFailedCount] = useState(0);
 
   const currentQuestion = questions[currentIndex];
   const answeredForCurrent = userAnswers[currentIndex] !== undefined;
@@ -57,17 +58,32 @@ export const Quiz: React.FC = () => {
     setGameState('loading');
     try {
       let q: Question[] = [];
+      
+      // Get recent questions from localStorage to avoid repeats
+      const recentIds = JSON.parse(localStorage.getItem('arkumen_recent_q_ids') || '[]');
+      
       if (mode === 'daily') {
         const today = new Date().toISOString().split('T')[0];
         const challenge = await generateDailyChallenge(today);
         q = challenge.questions;
       } else {
-        q = await generateQuestions('General', 10, 'Medium');
+        // We'll pass a hint to generate variant questions
+        const randomSeed = Math.floor(Math.random() * 1000000);
+        q = await generateQuestions('General', 10, 'Medium', `SessionSeed: ${randomSeed}, ExcludeSomeKeywords: ${recentIds.slice(-5).join(',')}`);
       }
+
+      // Final shuffle to be safe
+      q = q.sort(() => Math.random() - 0.5);
+
       setQuestions(q);
       setUserAnswers(new Array(q.length).fill(undefined));
       setGameState('playing');
       setTimeLeft(QUESTION_TIME);
+      
+      // Update recent questions
+      const newRecentIds = [...recentIds, ...q.map(item => item.text.substring(0, 20))].slice(-20);
+      localStorage.setItem('arkumen_recent_q_ids', JSON.stringify(newRecentIds));
+
     } catch (error) {
       console.error("Failed to fetch questions", error);
     }
@@ -117,6 +133,16 @@ export const Quiz: React.FC = () => {
     } else {
       playSound('fail');
       setStreak(0);
+      const newFailedCount = failedCount + 1;
+      setFailedCount(newFailedCount);
+      
+      if (newFailedCount > 1) {
+        // Sudden Death Trigger
+        setTimeout(() => {
+          finishGame();
+        }, 1500);
+        return;
+      }
     }
   };
 
@@ -182,6 +208,24 @@ export const Quiz: React.FC = () => {
 
       if (analysis.grade === 'S' || analysis.grade === 'A') {
         playSound('victory');
+        // Victory Fanfare Confetti
+        const duration = 5 * 1000;
+        const animationEnd = Date.now() + duration;
+        const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+        const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+
+        const interval: any = setInterval(function() {
+          const timeLeft = animationEnd - Date.now();
+
+          if (timeLeft <= 0) {
+            return clearInterval(interval);
+          }
+
+          const particleCount = 50 * (timeLeft / duration);
+          confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
+          confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
+        }, 250);
       }
 
       // Save Data
@@ -350,7 +394,7 @@ export const Quiz: React.FC = () => {
               </div>
               <div className="text-center space-y-2">
                 <p className="text-arkumen-gold font-display tracking-[0.3em] uppercase text-xs animate-pulse">Consulting the Source</p>
-                <p className="text-slate-400 font-luxury italic text-xl">The Grand Master evaluates your alignment...</p>
+                <p className="text-slate-400 font-luxury italic text-xl">The Arkumen System evaluates your alignment...</p>
               </div>
             </div>
           ) : gameResult && (
@@ -359,33 +403,64 @@ export const Quiz: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               className="text-left space-y-8"
             >
-              <div className="flex items-center gap-6 p-6 bg-arkumen-gold/5 rounded-3xl border border-arkumen-gold/20 backdrop-blur-md">
-                <div className="w-20 h-20 bg-arkumen-gold rounded-2xl flex items-center justify-center text-slate-950 text-4xl font-bold font-display shadow-[0_0_30px_rgba(212,175,55,0.3)]">
+              <div className="flex items-center gap-8 p-6 bg-arkumen-gold/5 rounded-3xl border border-arkumen-gold/20 backdrop-blur-md">
+                <div className="w-14 h-24 bg-arkumen-gold rounded-full flex items-center justify-center text-slate-950 text-4xl font-bold font-display shadow-[0_0_30px_rgba(212,175,55,0.3)] shrink-0">
                   {gameResult.grade}
                 </div>
-                <p className="text-slate-200 font-luxury italic text-xl leading-relaxed opacity-90">"{gameResult.message}"</p>
+                <div className="space-y-1">
+                  <span className="text-[10px] text-arkumen-gold font-black uppercase tracking-widest">TRIAL EVALUATION</span>
+                  <p className="text-slate-200 font-luxury italic text-lg leading-relaxed opacity-90">Verification complete. Record archived.</p>
+                </div>
               </div>
 
-              <div className="grid md:grid-cols-2 gap-6">
+              {/* Failed Questions Section */}
+              <div className="space-y-6">
+                <h4 className="text-[10px] font-bold text-arkumen-gold uppercase tracking-[0.2em] flex items-center gap-2">
+                  <XCircle size={16} className="text-red-500" /> REVELATION DRILL-DOWN (FAILED TRIALS)
+                </h4>
+                
                 <div className="space-y-4">
-                  <h4 className="text-[10px] font-bold text-green-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <CheckCircle2 size={16} /> Strengths
-                  </h4>
-                  <ul className="space-y-3">
-                    {gameResult.strengths?.map((s, i) => (
-                      <li key={i} className="text-sm text-slate-400 bg-white/5 px-4 py-3 rounded-xl border border-white/5">{s}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="space-y-4">
-                  <h4 className="text-[10px] font-bold text-red-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                    <XCircle size={16} /> Weaknesses
-                  </h4>
-                  <ul className="space-y-3">
-                    {gameResult.weaknesses?.map((w, i) => (
-                      <li key={i} className="text-sm text-slate-400 bg-white/5 px-4 py-3 rounded-xl border border-white/5">{w}</li>
-                    ))}
-                  </ul>
+                  {questions.map((q, idx) => {
+                    const isCorrect = userAnswers[idx] === q.correctAnswer;
+                    if (isCorrect) return null;
+
+                    return (
+                      <div key={idx} className="bg-white/5 rounded-2xl border border-white/5 p-5 space-y-4 relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-red-500/40" />
+                        <div className="flex justify-between items-start gap-4">
+                          <p className="text-sm text-slate-200 font-medium leading-relaxed italic">"{q.text}"</p>
+                          <span className="text-[10px] text-red-500 font-black shrink-0">FAILED</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4 text-[11px]">
+                          <div className="space-y-1">
+                            <span className="text-slate-500 font-bold uppercase tracking-widest">Your Attempt</span>
+                            <p className="text-red-400 font-medium">
+                              {userAnswers[idx] === -1 || userAnswers[idx] === null ? "TIMEOUT" : q.options[userAnswers[idx]!]}
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-slate-500 font-bold uppercase tracking-widest">Correct Truth</span>
+                            <p className="text-green-400 font-medium">{q.options[q.correctAnswer]}</p>
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-white/5">
+                          <p className="text-xs text-slate-400 leading-relaxed italic opacity-80">
+                            <span className="text-arkumen-gold font-black not-italic mr-2">LOGOS:</span>
+                            {q.explanation}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  
+                  {userAnswers.every((ans, idx) => ans === questions[idx]?.correctAnswer) && (
+                    <div className="text-center py-10 bg-arkumen-gold/5 rounded-3xl border border-dashed border-arkumen-gold/20">
+                      <Sparkles size={40} className="text-arkumen-gold mx-auto mb-4 animate-pulse" />
+                      <p className="text-arkumen-gold font-luxury italic text-xl">Perfect alignment. All revelations mastered.</p>
+                    </div>
+                  )}
                 </div>
               </div>
 

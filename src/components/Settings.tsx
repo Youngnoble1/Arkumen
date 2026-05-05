@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Settings as SettingsIcon, Volume2, Smartphone, Info, Zap } from 'lucide-react';
+import { User, Settings as SettingsIcon, Volume2, Smartphone, Info, Zap, Sparkles, CheckCircle2, RotateCcw, Camera } from 'lucide-react';
 import { useFirebase } from './FirebaseProvider';
 import { clsx } from 'clsx';
 
@@ -12,6 +12,10 @@ export const Settings: React.FC = () => {
     return localStorage.getItem('arkumen_haptic_enabled') !== 'false';
   });
 
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newName, setNewName] = useState(profile?.username || '');
+  const [isSavingName, setIsSavingName] = useState(false);
+
   const toggleSound = (val: boolean) => {
     setSoundEnabled(val);
     localStorage.setItem('arkumen_sound_enabled', String(val));
@@ -20,6 +24,23 @@ export const Settings: React.FC = () => {
   const toggleHaptic = (val: boolean) => {
     setHapticEnabled(val);
     localStorage.setItem('arkumen_haptic_enabled', String(val));
+  };
+
+  const handleUpdateName = async () => {
+    if (!newName.trim() || newName === profile?.username) {
+      setIsEditingName(false);
+      return;
+    }
+
+    setIsSavingName(true);
+    try {
+      await updateProfile({ username: newName });
+      setIsEditingName(false);
+    } catch (error) {
+      console.error("Failed to update name", error);
+    } finally {
+      setIsSavingName(false);
+    }
   };
 
   return (
@@ -74,12 +95,40 @@ export const Settings: React.FC = () => {
               <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.3em]">REWRITE BIOMETRICS</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
-               <div className="space-y-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               <div className="space-y-2">
                   <span className="text-[7px] text-slate-500 font-black uppercase tracking-[0.2em]">IDENTIFIER</span>
-                  <p className="text-md font-display text-white tracking-widest truncate">{profile?.username || 'GUEST'}</p>
+                  {isEditingName ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={newName}
+                        onChange={(e) => setNewName(e.target.value)}
+                        className="flex-1 bg-slate-900 border border-arkumen-gold/30 rounded-lg px-3 py-1 text-white text-md font-display outline-none focus:border-arkumen-gold transition-colors"
+                        maxLength={20}
+                        autoFocus
+                      />
+                      <button 
+                        onClick={handleUpdateName}
+                        disabled={isSavingName}
+                        className="p-2 bg-arkumen-gold rounded-lg text-slate-950 disabled:opacity-50"
+                      >
+                        <CheckCircle2 size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 group/name">
+                      <p className="text-md font-display text-white tracking-widest truncate">{profile?.username || 'GUEST'}</p>
+                      <button 
+                        onClick={() => { setIsEditingName(true); setNewName(profile?.username || ''); }}
+                        className="p-1.5 text-slate-500 hover:text-arkumen-gold transition-colors opacity-0 group-hover/name:opacity-100"
+                      >
+                        <Sparkles size={14} />
+                      </button>
+                    </div>
+                  )}
                </div>
-               <div className="space-y-1">
+               <div className="space-y-2">
                   <span className="text-[7px] text-slate-500 font-black uppercase tracking-[0.2em]">ACCESS LEVEL</span>
                   <p className="text-md font-display text-arkumen-gold tracking-widest">{profile?.rank || 'INITIATE'}</p>
                </div>

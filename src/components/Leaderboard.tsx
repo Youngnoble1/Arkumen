@@ -19,8 +19,19 @@ const LeaderboardItem = React.memo(({ user, index, isCurrentPlayer }: { user: Us
     )}
   >
     <div className="flex items-center gap-4">
-      <div className="w-10 h-10 rounded-xl bg-slate-900/80 border border-white/5 flex items-center justify-center font-display text-slate-500 text-lg group-hover:border-arkumen-gold/40 group-hover:text-arkumen-gold transition-colors">
-        {index + 4}
+      <div className="relative">
+        <div className="w-10 h-10 rounded-xl bg-slate-900 border border-white/5 flex items-center justify-center font-display text-slate-500 text-lg group-hover:border-arkumen-gold/40 group-hover:text-arkumen-gold transition-colors overflow-hidden">
+          {user.photoURL ? (
+            <img src={user.photoURL} alt={user.username} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+          ) : (
+            <span>{index + 4}</span>
+          )}
+        </div>
+        {user.photoURL && (
+          <div className="absolute -top-1 -right-1 w-4 h-4 bg-slate-900 border border-white/10 rounded font-black text-[7px] flex items-center justify-center text-slate-500">
+            {index + 4}
+          </div>
+        )}
       </div>
       
       <div className="space-y-1">
@@ -122,7 +133,11 @@ export const Leaderboard: React.FC = () => {
                                className="absolute inset-0 border border-dashed border-arkumen-gold/40 rounded-full scale-150"
                              />
                           )}
-                          <span className="text-arkumen-gold font-display text-xl">{u.username.substring(0, 1).toUpperCase()}</span>
+                          {u.photoURL ? (
+                            <img src={u.photoURL} alt={u.username} className="w-full h-full object-cover relative z-10" referrerPolicy="no-referrer" />
+                          ) : (
+                            <span className="text-arkumen-gold font-display text-xl relative z-10">{u.username.substring(0, 1).toUpperCase()}</span>
+                          )}
                        </div>
                        <div className={clsx(
                          "absolute -bottom-2 translate-x-1/2 right-1/2 w-6 h-6 rounded-lg flex items-center justify-center font-bold text-xs ring-4 ring-slate-950",

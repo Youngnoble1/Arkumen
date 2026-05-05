@@ -243,12 +243,15 @@ function randomizeQuestion(q: Question): Question {
 export async function generateQuestions(
   category: string, 
   count: number, 
-  difficulty: 'Easy' | 'Medium' | 'Hard'
+  difficulty: 'Easy' | 'Medium' | 'Hard',
+  context?: string
 ): Promise<Question[]> {
   // Get used question indices from localStorage to prevent repeats
-  const usedIndicesKey = `arkumen_used_questions_${difficulty.toLowerCase()}`;
+  const usedIndicesKey = `arkumen_used_questions_${difficulty.toLowerCase()}_${category.toLowerCase()}`;
   const usedIndicesStr = localStorage.getItem(usedIndicesKey);
   let usedIndices: number[] = usedIndicesStr ? JSON.parse(usedIndicesStr) : [];
+
+  console.log(`Generating questions for ${category} with context: ${context}`);
 
   // Filter pool by difficulty
   const difficultyPool = ARKUMEN_QUESTIONS_POOL.filter(q => q.difficulty === difficulty);
@@ -346,9 +349,9 @@ export async function analyzePerformance(
   
   const prompt = `Analyze Arker performance.
 Mode: ${mode}, Category: ${category}, Outcome: ${result}, XP Earned: ${score}, Streak: ${streak}, Accuracy: ${percentage.toFixed(1)}%.
-Voice: Grand Master.
+Voice: Arkumen System.
 RULES: Use "JESUS HIS PREEMINENCE" and "GOD". Refer to player as Arker. Always refer to revelations as being "as taught by the Prophet" rather than "from the notes".
-JSON: Grade (S,A,B,C,D,F), Message (thematic), Strengths (2-3), Weaknesses (1-2), NextSteps.`;
+JSON: Grade (S,A,B,C,D,F), Message (brief verification), Strengths (2-3), Weaknesses (1-2), NextSteps.`;
 
   const response = await ai.models.generateContent({
     model: "models/gemini-3-flash-preview",

@@ -50,7 +50,7 @@ interface BattleRoom {
 const sounds = {
   success: new Audio('https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3'),
   fail: new Audio('https://assets.mixkit.co/active_storage/sfx/2003/2003-preview.mp3'),
-  victory: new Audio('https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3')
+  victory: new Audio('https://assets.mixkit.co/active_storage/sfx/467/467-preview.mp3') // More triumphant fanfare
 };
 
 export const Battle: React.FC = () => {
@@ -323,13 +323,33 @@ export const Battle: React.FC = () => {
         updates.highestScore = me.score;
       }
 
-      const applyUpdates = async () => {
+          const applyUpdates = async () => {
         try {
           const userRef = doc(db, 'users', user.uid);
           await updateDoc(userRef, updates);
           setHasUpdatedProfile(true);
           setEarnedXPState(earnedXP);
-          if (isWinner) playSound('victory');
+          if (isWinner) {
+            playSound('victory');
+            // Victory Fanfare Confetti
+            const duration = 5 * 1000;
+            const animationEnd = Date.now() + duration;
+            const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+            const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+
+            const interval: any = setInterval(function() {
+              const timeLeft = animationEnd - Date.now();
+
+              if (timeLeft <= 0) {
+                return clearInterval(interval);
+              }
+
+              const particleCount = 50 * (timeLeft / duration);
+              confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
+              confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
+            }, 250);
+          }
         } catch (e) {
           console.error("Failed to update battle results to profile", e);
         }
@@ -557,17 +577,25 @@ export const Battle: React.FC = () => {
               {isSettingsOpen && <SettingsModal />}
 
               <div className="space-y-4">
-                {room.players.map((p, i) => (
-                  <motion.div 
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                    key={p.uid} 
-                    className={clsx(
-                      "arena-card p-5 border-white/5 bg-slate-900/40 backdrop-blur-sm flex items-center justify-between",
-                      p.uid === user?.uid && "border-arkumen-gold/20 bg-arkumen-gold/5"
-                    )}
-                  >
+                <AnimatePresence mode="popLayout">
+                  {room.players.map((p, i) => (
+                    <motion.div 
+                      layout
+                      initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                      transition={{ 
+                        type: "spring",
+                        stiffness: 300,
+                        damping: 25,
+                        delay: i * 0.1 
+                      }}
+                      key={p.uid} 
+                      className={clsx(
+                        "arena-card p-5 border-white/5 bg-slate-900/40 backdrop-blur-sm flex items-center justify-between",
+                        p.uid === user?.uid && "border-arkumen-gold/20 bg-arkumen-gold/5"
+                      )}
+                    >
                     <div className="flex items-center gap-5">
                       <div className="relative">
                         <div className="w-14 h-14 rounded-2xl bg-slate-800 border-2 border-white/5 flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform">
@@ -605,6 +633,7 @@ export const Battle: React.FC = () => {
                     )}
                   </motion.div>
                 ))}
+              </AnimatePresence>
                 
                 {room.players.length < 2 && (
                   <div className="p-10 text-center border-2 border-dashed border-white/5 rounded-3xl group hover:border-arkumen-gold/20 transition-all">

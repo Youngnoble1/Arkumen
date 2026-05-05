@@ -36,13 +36,9 @@ export const Reception: React.FC = () => {
           transition={{ delay: 0.5 }}
           className="space-y-6"
         >
-          <div className="p-8 rounded-[2rem] bg-slate-900/50 border border-white/5 backdrop-blur-xl space-y-4">
-            <p className="font-luxury text-xl text-arkumen-gold/90 leading-relaxed italic">
+          <div className="p-8 py-12 rounded-[2.5rem] bg-slate-900/50 border border-white/5 backdrop-blur-xl flex items-center justify-center min-h-[250px]">
+            <p className="font-luxury text-3xl md:text-4xl text-arkumen-gold/90 leading-tight italic max-w-sm">
               "Beloved Arker, welcome to the Arkumen quiz game."
-            </p>
-            <div className="h-[1px] w-12 bg-arkumen-gold/20 mx-auto"></div>
-            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest leading-loose">
-              Prepare your spirit for the trials of revelation. Your journey through the mysteries begins here.
             </p>
           </div>
 

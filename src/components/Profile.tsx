@@ -1,5 +1,5 @@
 import React from 'react';
-import { LogOut, Shield, Award, Calendar, Zap, Target, TrendingUp, User as UserIcon, Sparkles, RotateCcw, CheckCircle2, Brain, Crown } from 'lucide-react';
+import { LogOut, Shield, Award, Calendar, Zap, Target, TrendingUp, User as UserIcon, Sparkles, RotateCcw, CheckCircle2, Brain, Crown, Camera, Link, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useFirebase } from './FirebaseProvider';
 import { auth, googleProvider } from '../firebase';
@@ -67,6 +67,10 @@ export const Profile: React.FC = () => {
   const [newName, setNewName] = React.useState(profile.username);
   const [isSavingName, setIsSavingName] = React.useState(false);
 
+  const [isEditingAvatar, setIsEditingAvatar] = React.useState(false);
+  const [newAvatarUrl, setNewAvatarUrl] = React.useState(profile.photoURL || '');
+  const [isSavingAvatar, setIsSavingAvatar] = React.useState(false);
+
   const handleUpdateName = async () => {
     if (!newName.trim() || newName === profile.username) {
       setIsEditingName(false);
@@ -81,6 +85,23 @@ export const Profile: React.FC = () => {
       console.error("Failed to update name", error);
     } finally {
       setIsSavingName(false);
+    }
+  };
+
+  const handleUpdateAvatar = async () => {
+    if (!newAvatarUrl.trim() || newAvatarUrl === profile.photoURL) {
+      setIsEditingAvatar(false);
+      return;
+    }
+
+    setIsSavingAvatar(true);
+    try {
+      await updateProfile({ photoURL: newAvatarUrl });
+      setIsEditingAvatar(false);
+    } catch (error) {
+      console.error("Failed to update avatar", error);
+    } finally {
+      setIsSavingAvatar(false);
     }
   };
 
@@ -105,7 +126,7 @@ export const Profile: React.FC = () => {
       <main className="pt-28 px-6 max-w-lg mx-auto space-y-12">
         {/* Profile Details Header */}
         <section className="flex flex-col items-center text-center space-y-6">
-          <div className="relative">
+          <div className="relative group/avatar">
             <div className="w-32 h-32 rounded-[2.5rem] border-2 border-arkumen-gold p-1 bg-slate-900 shadow-[0_0_50px_rgba(212,175,55,0.2)] relative overflow-hidden group">
                <motion.div 
                  initial={{ opacity: 0 }}
@@ -113,15 +134,27 @@ export const Profile: React.FC = () => {
                  className="absolute inset-0 bg-arkumen-gold/5 animate-pulse"
                />
                <img 
-                 src={user?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.uid}`} 
+                 src={profile.photoURL || user?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.uid}`} 
                  alt="Profile" 
                  className="w-full h-full rounded-[2.1rem] object-cover relative z-10 filter grayscale-[0.3] group-hover:grayscale-0 transition-all duration-500"
                  referrerPolicy="no-referrer"
                />
                <div className="absolute inset-0 border-[10px] border-slate-950/20 z-20 pointer-events-none"></div>
+               
+               {/* Avatar Edit Overlay */}
+               <button 
+                 onClick={() => {
+                   setIsEditingAvatar(true);
+                   setNewAvatarUrl(profile.photoURL || '');
+                 }}
+                 className="absolute inset-0 z-30 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+               >
+                 <Camera size={24} className="text-arkumen-gold mb-1" />
+                 <span className="text-[7px] font-black uppercase tracking-widest text-white">Update Seal</span>
+               </button>
             </div>
             
-            <div className="absolute -bottom-2 translate-x-1/2 right-1/2 flex items-center gap-2 bg-slate-950 px-4 py-1.5 rounded-xl border border-white/10 shadow-2xl z-30">
+            <div className="absolute -bottom-2 translate-x-1/2 right-1/2 flex items-center gap-2 bg-slate-950 px-4 py-1.5 rounded-xl border border-white/10 shadow-2xl z-40 whitespace-nowrap">
                <div className={clsx(
                  "w-1.5 h-1.5 rounded-full",
                  connected === true ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" : "bg-red-500"
@@ -130,6 +163,46 @@ export const Profile: React.FC = () => {
                  {connected === true ? "ARK LINKED" : "OFFLINE RECORD"}
                </span>
             </div>
+
+            {/* Avatar URL Edit Modal-ish */}
+            {isEditingAvatar && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="absolute top-0 left-full ml-4 z-50 w-64 p-4 bg-[#020617] border border-white/10 rounded-2xl shadow-2xl backdrop-blur-3xl text-left space-y-4"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[8px] text-slate-500 font-black uppercase tracking-widest">Update Photo URL</span>
+                  <button onClick={() => setIsEditingAvatar(false)} className="text-slate-500 hover:text-white">
+                    <X size={14} />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Link size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input 
+                      type="text"
+                      placeholder="Paste image URL here..."
+                      value={newAvatarUrl}
+                      onChange={(e) => setNewAvatarUrl(e.target.value)}
+                      className="w-full bg-slate-900 border border-white/5 rounded-xl pl-8 pr-3 py-2 text-[10px] text-slate-200 outline-none focus:border-arkumen-gold/30 transition-all font-mono"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={handleUpdateAvatar}
+                      disabled={isSavingAvatar}
+                      className="flex-1 py-2 bg-arkumen-gold text-slate-950 rounded-xl text-[9px] font-black uppercase tracking-widest disabled:opacity-50"
+                    >
+                      {isSavingAvatar ? "Saving..." : "Verify & Save"}
+                    </button>
+                  </div>
+                  <p className="text-[7px] text-slate-600 font-medium leading-relaxed italic">
+                    External link to your digital manifestation. Leave empty to restore default.
+                  </p>
+                </div>
+              </motion.div>
+            )}
           </div>
 
           <div className="space-y-4 w-full">
