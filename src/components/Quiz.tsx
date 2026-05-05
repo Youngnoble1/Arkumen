@@ -50,7 +50,7 @@ export const Quiz: React.FC = () => {
     console.log(`Playing sound: ${type}`);
     const audio = sounds[type];
     audio.currentTime = 0;
-    audio.volume = 0.5;
+    audio.volume = type === 'victory' ? 0.8 : 0.5;
     audio.play().catch(e => console.log('Audio play blocked or failed', e));
   };
 

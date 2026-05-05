@@ -16,9 +16,26 @@
         "lastDailyChallengeDate": { "type": "string" },
         "dailyChallengeStreak": { "type": "number" },
         "badges": { "type": "array", "items": { "type": "string" } },
-        "role": { "type": "string", "enum": ["user", "admin"] }
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "isOnline": { "type": "boolean" },
+        "lastActive": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "username", "xp", "highestScore", "arkerTitle", "rank", "level", "createdAt"]
+    },
+    "DuelInvite": {
+      "title": "Duel Invite",
+      "description": "An invitation for a duel between two players",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "declined"] },
+        "roomId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "senderName", "receiverId", "status", "createdAt"]
     },
     "GameResult": {
       "title": "Game Result",
@@ -52,8 +69,8 @@
       },
       "required": ["text", "options", "correctAnswer", "explanation", "difficulty"]
     },
-    "BattleRoom": {
-      "title": "Battle Room",
+    "BattlegroundRoom": {
+      "title": "Battleground Room",
       "description": "A real-time multiplayer session",
       "type": "object",
       "properties": {
@@ -91,8 +108,12 @@
       "description": "Individual game results for leaderboard and history"
     },
     "/rooms/{roomId}": {
-      "schema": "BattleRoom",
-      "description": "Multiplayer battle rooms"
+      "schema": "BattlegroundRoom",
+      "description": "Multiplayer battleground rooms"
+    },
+    "/invites/{inviteId}": {
+      "schema": "DuelInvite",
+      "description": "Duel invitations"
     }
   }
 }

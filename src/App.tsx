@@ -10,7 +10,7 @@ const Quiz = lazy(() => import('./components/Quiz').then(m => ({ default: m.Quiz
 const Leaderboard = lazy(() => import('./components/Leaderboard').then(m => ({ default: m.Leaderboard })));
 const Profile = lazy(() => import('./components/Profile').then(m => ({ default: m.Profile })));
 const Settings = lazy(() => import('./components/Settings').then(m => ({ default: m.Settings })));
-const Battle = lazy(() => import('./components/Battle').then(m => ({ default: m.Battle })));
+const Battleground = lazy(() => import('./components/Battleground').then(m => ({ default: m.Battleground })));
 
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center min-h-[50vh]">
@@ -31,7 +31,7 @@ export default function App() {
               <Route path="/leaderboard" element={<Leaderboard />} />
               <Route path="/profile" element={<Profile />} />
               <Route path="/settings" element={<Settings />} />
-              <Route path="/battle" element={<Battle />} />
+              <Route path="/battleground" element={<Battleground />} />
               <Route path="*" element={<Reception />} />
             </Routes>
           </Suspense>

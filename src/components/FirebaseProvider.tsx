@@ -172,6 +172,38 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return () => unsubscribeAuth();
   }, []);
 
+  useEffect(() => {
+    if (!profile?.uid) return;
+
+    const setOnlineStatus = async (status: boolean) => {
+      try {
+        const userRef = doc(db, 'users', profile.uid);
+        await updateDoc(userRef, {
+          isOnline: status,
+          lastActive: new Date().toISOString()
+        });
+      } catch (e) {
+        // Silently fail, likely offline or permission issue
+      }
+    };
+
+    setOnlineStatus(true);
+
+    const interval = setInterval(() => setOnlineStatus(true), 2 * 60 * 1000);
+
+    const handleUnload = () => {
+      setOnlineStatus(false);
+    };
+
+    window.addEventListener('beforeunload', handleUnload);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleUnload);
+      setOnlineStatus(false);
+    };
+  }, [profile?.uid]);
+
   const contextValue = React.useMemo(() => ({
     user,
     profile,

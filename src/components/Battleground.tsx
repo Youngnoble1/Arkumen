@@ -17,13 +17,13 @@ import { db, OperationType, handleFirestoreError } from '../firebase';
 import { Question } from '../types';
 import { generateQuestions } from '../services/geminiService';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Users, Zap, Crown, Timer, Home, ArrowRight, CheckCircle2, XCircle, Settings } from 'lucide-react';
+import { Trophy, Users, Zap, Crown, Timer, Home, ArrowRight, CheckCircle2, XCircle, Settings, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
 import confetti from 'canvas-confetti';
 import { calculateRank } from '../lib/rankings';
 import { UserProfile } from '../types';
 
-interface BattlePlayer {
+interface BattlegroundPlayer {
   uid: string;
   username: string;
   score: number;
@@ -31,12 +31,14 @@ interface BattlePlayer {
   isReady: boolean;
   photoURL?: string;
   isFinished: boolean;
+  failedCount: number;
+  isEliminated: boolean;
 }
 
-interface BattleRoom {
+interface BattlegroundRoom {
   id: string;
   status: 'waiting' | 'playing' | 'finished';
-  players: BattlePlayer[];
+  players: BattlegroundPlayer[];
   questions: Question[];
   hostId: string;
   difficulty: 'Easy' | 'Medium' | 'Hard';
@@ -53,11 +55,12 @@ const sounds = {
   victory: new Audio('https://assets.mixkit.co/active_storage/sfx/467/467-preview.mp3') // More triumphant fanfare
 };
 
-export const Battle: React.FC = () => {
+export const Battleground: React.FC = () => {
   const { user, profile } = useFirebase();
   const navigate = useNavigate();
-  const [room, setRoom] = useState<BattleRoom | null>(null);
+  const [room, setRoom] = useState<BattlegroundRoom | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(30);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -67,8 +70,13 @@ export const Battle: React.FC = () => {
   const [wasTrailingBy50Percent, setWasTrailingBy50Percent] = useState(false);
   const [hasUpdatedProfile, setHasUpdatedProfile] = useState(false);
   const [earnedXPState, setEarnedXPState] = useState<number | null>(null);
+  const [userAnswers, setUserAnswers] = useState<(number | null)[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
+  
+  const [onlineArkers, setOnlineArkers] = useState<UserProfile[]>([]);
+  const [incomingInvite, setIncomingInvite] = useState<any>(null);
+  const [isInviting, setIsInviting] = useState(false);
 
   const playSound = (type: 'success' | 'fail' | 'victory') => {
     const soundEnabled = localStorage.getItem('arkumen_sound_enabled') !== 'false';
@@ -77,101 +85,233 @@ export const Battle: React.FC = () => {
     console.log(`Playing sound: ${type}`);
     const audio = sounds[type];
     audio.currentTime = 0;
-    audio.volume = 0.5;
+    audio.volume = type === 'victory' ? 0.8 : 0.5;
     audio.play().catch(e => console.log('Audio play blocked or failed', e));
   };
 
-  // Matchmaking
+  // Matchmaking & Online Arkers
   useEffect(() => {
     if (!user || !profile) return;
 
-    const findRoom = async () => {
-      setLoading(true);
-      try {
-        // Look for waiting rooms
-        const q = query(
-          collection(db, 'rooms'), 
-          where('status', '==', 'waiting')
-        );
-        const snapshot = await getDocs(q);
-        
-        let targetRoomId = '';
+    // Listen for Online Arkers
+    const arkersQuery = query(
+      collection(db, 'users'),
+      where('isOnline', '==', true)
+    );
+    const unsubArkers = onSnapshot(arkersQuery, (snapshot) => {
+      const arkers = snapshot.docs
+        .map(doc => doc.data() as UserProfile)
+        .filter(p => p.uid !== user.uid);
+      setOnlineArkers(arkers);
+      setLoading(false);
+    }, (err) => {
+      console.warn("Online Arkers listener failed:", err);
+      setError("Failed to sync with the Hub of Truth. Check your connection.");
+      setLoading(false);
+    });
 
-        if (snapshot.empty) {
-          // Create new room
-          const questions = await generateQuestions('General Knowledge', 10, 'Medium');
-          const newRoom = {
-            status: 'waiting',
-            hostId: user.uid,
-            difficulty: 'Medium',
-            questionCount: 10,
-            timeLimit: 30,
-            players: [{
-              uid: user.uid,
-              username: profile.username,
-              score: 0,
-              currentQuestionIndex: 0,
-              isReady: false,
-              isFinished: false,
-              photoURL: profile.photoURL || user.photoURL || undefined
-            }],
-            questions,
-            createdAt: serverTimestamp()
-          };
-          const docRef = await addDoc(collection(db, 'rooms'), newRoom);
-          targetRoomId = docRef.id;
-        } else {
-          // Join existing room
-          const existingRoom = snapshot.docs[0];
-          targetRoomId = existingRoom.id;
-          
-          // Check if already in room
-          const data = existingRoom.data() as BattleRoom;
-          if (!data.players.find(p => p.uid === user.uid)) {
-            await updateDoc(doc(db, 'rooms', targetRoomId), {
-              players: arrayUnion({
-                uid: user.uid,
-                username: profile.username,
-                score: 0,
-                currentQuestionIndex: 0,
-                isReady: false,
-                isFinished: false,
-                photoURL: profile.photoURL || user.photoURL || undefined
-              })
-            });
-          }
-        }
-
-        // Subscribe to room updates
-        const unsubscribe = onSnapshot(doc(db, 'rooms', targetRoomId), (doc) => {
-          if (doc.exists()) {
-            const roomData = { id: doc.id, ...doc.data() } as BattleRoom;
-            setRoom(roomData);
-            
-            if (roomData.status === 'playing') {
-              setGameState('playing');
-              setTimeLeft(roomData.timeLimit || 30);
-            } else if (roomData.status === 'finished') {
-              setGameState('results');
-            }
-          }
-        }, (error) => {
-          handleFirestoreError(error, OperationType.GET, `rooms/${targetRoomId}`);
-        });
-
-        setLoading(false);
-        return unsubscribe;
-      } catch (error) {
-        handleFirestoreError(error, OperationType.GET, 'rooms');
-        setLoading(false);
+    // Listen for Incoming Invites
+    const invitesQuery = query(
+      collection(db, 'invites'),
+      where('receiverId', '==', user.uid),
+      where('status', '==', 'pending')
+    );
+    const unsubInvites = onSnapshot(invitesQuery, (snapshot) => {
+      if (!snapshot.empty) {
+        const inviteData = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };
+        setIncomingInvite(inviteData);
+      } else {
+        setIncomingInvite(null);
       }
-    };
+    }, (err) => {
+      console.warn("Invites listener failed:", err);
+    });
 
-    const unsubPromise = findRoom();
+    // Listen for auto-joining room (if any)
+    const roomsQuery = query(
+      collection(db, 'rooms'),
+      where('status', 'in', ['waiting', 'playing'])
+    );
+    
+    const unsubRooms = onSnapshot(roomsQuery, (snapshot) => {
+      const myRoom = snapshot.docs.find(doc => {
+        const data = doc.data() as BattlegroundRoom;
+        return data.players.some(p => p.uid === user.uid);
+      });
+
+      if (myRoom) {
+        const roomData = { id: myRoom.id, ...myRoom.data() } as BattlegroundRoom;
+        setRoom(roomData);
+        if (roomData.status === 'playing') {
+          setGameState('playing');
+          setTimeLeft(roomData.timeLimit || 30);
+        } else if (roomData.status === 'finished') {
+          setGameState('results');
+        } else {
+          setGameState('lobby');
+        }
+      } else {
+        setRoom(null);
+        setGameState('lobby');
+      }
+    }, (err) => {
+      console.warn("Rooms listener failed:", err);
+      setError("Failed to join the Battleground. Network interference detected.");
+    });
+
+    const timeout = setTimeout(() => {
+      setLoading(false);
+      // If we've timed out and still don't have online arkers or a room, 
+      // check if we're actually connected
+      if (!room && onlineArkers.length === 0) {
+        console.warn("Matchmaking initial sync timed out.");
+      }
+    }, 5000); // Reduce to 5s for snappier feedback
+
     return () => {
-      unsubPromise.then(unsub => unsub && unsub());
+      unsubArkers();
+      unsubInvites();
+      unsubRooms();
+      clearTimeout(timeout);
     };
   }, [user, profile]);
+
+  const joinMatchmaking = async () => {
+    if (!user || !profile) return;
+    setLoading(true);
+    
+    // Add a race condition to prevent indefinite hanging
+    const matchmakingTimeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("Matchmaking request timed out")), 10000)
+    );
+
+    try {
+      const q = query(
+        collection(db, 'rooms'), 
+        where('status', '==', 'waiting'),
+        where('isPrivate', '==', false)
+      );
+      
+      const snapshot = await Promise.race([getDocs(q), matchmakingTimeout]) as any;
+      
+      if (snapshot.empty) {
+        const questions = await generateQuestions('General Knowledge', 10, 'Medium');
+        const newRoom = {
+          status: 'waiting',
+          isPrivate: false,
+          hostId: user.uid,
+          difficulty: 'Medium',
+          questionCount: 10,
+          timeLimit: 30,
+          players: [{
+            uid: user.uid,
+            username: profile.username,
+            score: 0,
+            currentQuestionIndex: 0,
+            isReady: false,
+            isFinished: false,
+            failedCount: 0,
+            isEliminated: false,
+            photoURL: profile.photoURL || user.photoURL || undefined
+          }],
+          questions,
+          createdAt: serverTimestamp()
+        };
+        await addDoc(collection(db, 'rooms'), newRoom);
+      } else {
+        const targetRoom = snapshot.docs[0];
+        await updateDoc(doc(db, 'rooms', targetRoom.id), {
+          players: arrayUnion({
+            uid: user.uid,
+            username: profile.username,
+            score: 0,
+            currentQuestionIndex: 0,
+            isReady: false,
+            isFinished: false,
+            failedCount: 0,
+            isEliminated: false,
+            photoURL: profile.photoURL || user.photoURL || undefined
+          })
+        });
+      }
+    } catch (e) {
+      console.error("Matchmaking failed or timed out:", e);
+      setError("Network interference detected. Re-aligning frequencies...");
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const challengeArker = async (opponent: UserProfile) => {
+    if (!user || !profile) return;
+    setIsInviting(true);
+    try {
+      const questions = await generateQuestions('General Knowledge', 10, 'Medium');
+      const newRoom = {
+        status: 'waiting',
+        isPrivate: true,
+        hostId: user.uid,
+        difficulty: 'Medium',
+        questionCount: 10,
+        timeLimit: 30,
+        players: [{
+          uid: user.uid,
+          username: profile.username,
+          score: 0,
+          currentQuestionIndex: 0,
+          isReady: false,
+          isFinished: false,
+          failedCount: 0,
+          isEliminated: false,
+          photoURL: profile.photoURL || user.photoURL || undefined
+        }],
+        questions,
+        createdAt: serverTimestamp()
+      };
+      const roomRef = await addDoc(collection(db, 'rooms'), newRoom);
+      
+      await addDoc(collection(db, 'invites'), {
+        senderId: user.uid,
+        senderName: profile.username,
+        receiverId: opponent.uid,
+        status: 'pending',
+        roomId: roomRef.id,
+        createdAt: serverTimestamp()
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsInviting(false);
+    }
+  };
+
+  const respondToInvite = async (inviteId: string, accept: boolean) => {
+    if (!user || !profile || !incomingInvite) return;
+    try {
+      if (accept) {
+        // Update room with current player
+        await updateDoc(doc(db, 'rooms', incomingInvite.roomId), {
+          players: arrayUnion({
+            uid: user.uid,
+            username: profile.username,
+            score: 0,
+            currentQuestionIndex: 0,
+            isReady: false,
+            isFinished: false,
+            failedCount: 0,
+            isEliminated: false,
+            photoURL: profile.photoURL || user.photoURL || undefined
+          })
+        });
+        await updateDoc(doc(db, 'invites', inviteId), { status: 'accepted' });
+      } else {
+        await updateDoc(doc(db, 'invites', inviteId), { status: 'declined' });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // Timer logic
   useEffect(() => {
@@ -210,6 +350,11 @@ export const Battle: React.FC = () => {
     const points = isCorrect ? (1000 + timeLeft * 10) : 0;
     
     setSelectedAnswer(index);
+    setUserAnswers(prev => {
+      const next = [...prev];
+      next[currentIndex] = index;
+      return next;
+    });
     
     if (isCorrect) {
       setScorePulse(user.uid);
@@ -219,11 +364,14 @@ export const Battle: React.FC = () => {
     // Update score in Firestore
     const newPlayers = room.players.map(p => {
       if (p.uid === user.uid) {
+        const newFailedCount = p.failedCount + (isCorrect ? 0 : 1);
         return {
           ...p,
           score: p.score + points,
           currentQuestionIndex: currentIndex + 1,
-          isFinished: currentIndex === room.questions.length - 1
+          failedCount: newFailedCount,
+          isEliminated: newFailedCount > 1,
+          isFinished: (currentIndex === room.questions.length - 1) || (newFailedCount > 1)
         };
       }
       return p;
@@ -277,12 +425,13 @@ export const Battle: React.FC = () => {
       const opponent = room.players.find(p => p.uid !== user.uid);
       if (!me) return;
 
-      const isWinner = !opponent || me.score > opponent.score;
-      const isDraw = opponent && me.score === opponent.score;
+      const isWinner = room.players.every(p => p.uid === user.uid || (me.score > p.score || p.isEliminated));
+      const hasLost = room.players.some(p => p.uid !== user.uid && p.score > me.score && !me.isEliminated);
+      const isDraw = !isWinner && !hasLost && room.players.some(p => p.uid !== user.uid && p.score === me.score);
       
-      const baseXP = isWinner ? 100 : (isDraw ? 75 : 50);
+      const baseXP = isWinner ? 120 : (isDraw ? 80 : 50);
       const performanceXP = Math.floor(me.score / 100);
-      const earnedXP = baseXP + performanceXP;
+      const earnedXP = me.isEliminated ? Math.floor(performanceXP / 2) : (baseXP + performanceXP);
 
       const currentBadges = profile.badges || [];
       let earnedResilience = false;
@@ -483,7 +632,7 @@ export const Battle: React.FC = () => {
     );
   };
 
-  if (loading || !room) {
+  if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-arkumen-bg">
         <div className="w-16 h-16 border-4 border-arkumen-gold border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -492,10 +641,140 @@ export const Battle: React.FC = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-arkumen-bg p-6 text-center">
+        <div className="hud-circle mb-6 w-20 h-20 border-red-500/30">
+          <XCircle size={32} className="text-red-500" />
+        </div>
+        <h2 className="text-2xl font-display text-white tracking-widest uppercase mb-4">Connection Obscured</h2>
+        <p className="text-slate-400 text-sm italic mb-8 max-w-xs mx-auto">"{error}"</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-8 py-4 bg-arkumen-gold text-slate-950 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl"
+        >
+          Re-align Transmission
+        </button>
+      </div>
+    );
+  }
+
+  // Incoming Invite Modal
+  const InviteModal = () => (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-950/90 backdrop-blur-xl">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="arena-card w-full max-w-sm p-8 text-center space-y-6 border-arkumen-gold/50 shadow-[0_0_50px_rgba(212,175,55,0.2)]"
+      >
+        <div className="hud-circle mx-auto w-20 h-20 border-arkumen-gold/30">
+          <Zap size={32} className="text-arkumen-gold animate-pulse" />
+        </div>
+        <div className="space-y-2">
+          <h3 className="font-display text-xl text-arkumen-gold tracking-widest uppercase">Duel Request</h3>
+          <p className="text-slate-200 font-medium italic">"{incomingInvite.senderName} has challenged your mastery."</p>
+        </div>
+        <div className="flex gap-4">
+          <button
+            onClick={() => respondToInvite(incomingInvite.id, false)}
+            className="flex-1 py-4 bg-slate-900 text-slate-500 rounded-2xl border border-white/5 font-black text-[10px] uppercase tracking-widest hover:bg-slate-800 transition-all"
+          >
+            Decline
+          </button>
+          <button
+            onClick={() => respondToInvite(incomingInvite.id, true)}
+            className="flex-1 py-4 bg-arkumen-gold text-slate-950 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl"
+          >
+            Accept Duel
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+
+  if (!room) {
+    return (
+      <div className="min-h-screen bg-arkumen-bg text-slate-100 font-sans pb-10">
+        {incomingInvite && <InviteModal />}
+        
+        <header className="fixed top-0 left-0 right-0 z-50 bg-[#020617]/95 backdrop-blur-3xl px-6 py-5 flex items-center justify-between border-b border-white/5">
+          <div className="flex items-center gap-6">
+            <button onClick={() => navigate('/arena')} className="hud-circle text-slate-500 hover:text-arkumen-gold transition-all">
+              <Home size={20} />
+            </button>
+            <div className="flex flex-col">
+              <span className="text-[8px] text-slate-500 font-black uppercase tracking-[0.4em] opacity-60">HUB OF TRUTH</span>
+              <span className="text-arkumen-gold font-display text-sm tracking-widest uppercase">Battleground Hub</span>
+            </div>
+          </div>
+        </header>
+
+        <main className="pt-32 px-6 max-w-md mx-auto space-y-12">
+          <div className="text-center space-y-4">
+            <Trophy size={48} className="text-arkumen-gold/30 mx-auto" />
+            <h2 className="text-4xl logo-text">BATTLEGROUND</h2>
+            <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.4em]">Multiplayer Revelation Trials</p>
+          </div>
+
+          <div className="space-y-6">
+            <button
+              onClick={joinMatchmaking}
+              className="w-full py-6 bg-arkumen-gold text-slate-950 rounded-3xl font-display text-[11px] tracking-[0.4em] uppercase shadow-[0_0_50px_rgba(212,175,55,0.2)] hover:scale-[1.02] active:scale-[0.98] transition-all relative overflow-hidden group"
+            >
+              <div className="relative z-10 flex items-center justify-center gap-3">
+                <Zap size={18} />
+                Global Matchmaking
+              </div>
+              <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 skew-x-[-20deg]"></div>
+            </button>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="h-[1px] flex-1 bg-white/5"></div>
+                <span className="text-[9px] text-slate-500 font-black uppercase tracking-[0.3em]">Online Arkers</span>
+                <div className="h-[1px] flex-1 bg-white/5"></div>
+              </div>
+
+              <div className="space-y-3">
+                {onlineArkers.length === 0 ? (
+                  <div className="p-8 text-center border border-dashed border-white/5 rounded-3xl opacity-50">
+                    <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest italic">No other Arkers manifested currently.</p>
+                  </div>
+                ) : (
+                  onlineArkers.map(p => (
+                    <div key={p.uid} className="arena-card p-4 border-white/5 flex items-center justify-between group hover:border-arkumen-gold/30 transition-all">
+                      <div className="flex items-center gap-3">
+                         <div className="w-10 h-10 rounded-xl bg-slate-800 border border-white/10 overflow-hidden flex items-center justify-center">
+                            {p.photoURL ? <img src={p.photoURL} alt="" /> : <Users size={16} className="text-slate-600" />}
+                         </div>
+                         <div>
+                            <p className="text-xs font-display text-white tracking-widest">{p.username}</p>
+                            <p className="text-[8px] text-slate-500 font-black uppercase tracking-widest">{p.rank}</p>
+                         </div>
+                      </div>
+                      <button
+                        onClick={() => challengeArker(p)}
+                        disabled={isInviting}
+                        className="p-3 bg-slate-900 border border-white/10 rounded-xl text-arkumen-gold hover:bg-arkumen-gold hover:text-slate-950 transition-all active:scale-95 disabled:opacity-50"
+                      >
+                        <ArrowRight size={14} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   const currentPlayer = room.players.find(p => p.uid === user?.uid);
 
   return (
-    <div className="min-h-screen bg-arkumen-bg text-slate-100 font-sans pb-10">
+    <div className="min-h-screen bg-arkumen-bg text-slate-100 font-sans pb-10 px-0">
+      {incomingInvite && <InviteModal />}
       {/* Cinematic HUD Sync */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-[#020617]/95 backdrop-blur-3xl px-6 py-5 flex items-center justify-between border-b border-white/5 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
         <div className="flex items-center gap-6">
@@ -508,7 +787,7 @@ export const Battle: React.FC = () => {
             <div className="flex items-center gap-2">
                <Users size={12} className="text-arkumen-gold" />
                <span className="text-arkumen-gold font-display text-sm tracking-widest uppercase">
-                 {gameState === 'lobby' ? 'Matchmaking' : 'Live Duel'}
+                 {gameState === 'lobby' ? 'Matchmaking' : 'Combat Zone'}
                </span>
             </div>
           </div>
@@ -553,9 +832,9 @@ export const Battle: React.FC = () => {
                 >
                   <Users size={48} className="text-arkumen-gold mx-auto mb-4 opacity-40" />
                 </motion.div>
-                <h2 className="text-4xl logo-text">THE CITADEL</h2>
+                <h2 className="text-4xl logo-text">BATTLEGROUND</h2>
                 <div className="flex flex-col items-center gap-2">
-                   <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.5em] animate-pulse">Scanning for Noble Arkers...</p>
+                   <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.5em] animate-pulse">Scanning for Opponents...</p>
                    {room && (
                      <div className="flex items-center gap-4 mt-2">
                        <span className="text-[8px] text-arkumen-gold/60 font-black tracking-widest uppercase border border-arkumen-gold/20 px-2 py-1 rounded">
@@ -692,15 +971,25 @@ export const Battle: React.FC = () => {
                               )}
                             </div>
                             {p.isFinished && (
-                              <div className="absolute -bottom-1 -right-1 bg-green-500 rounded-lg p-0.5 border-2 border-slate-950 shadow-xl">
-                                <CheckCircle2 size={10} className="text-white" />
+                              <div className={clsx(
+                                "absolute -bottom-1 -right-1 rounded-lg p-0.5 border-2 border-slate-950 shadow-xl",
+                                p.isEliminated ? "bg-red-500" : "bg-green-500"
+                              )}>
+                                {p.isEliminated ? <XCircle size={10} className="text-white" /> : <CheckCircle2 size={10} className="text-white" />}
                               </div>
                             )}
                           </div>
                           <div className="flex flex-col">
-                            <span className="text-[7px] text-slate-500 font-black uppercase tracking-[0.2em] mb-0.5">
-                              {p.uid === user?.uid ? 'YOU' : 'OPPONENT'}
-                            </span>
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="text-[7px] text-slate-500 font-black uppercase tracking-[0.2em]">
+                                {p.uid === user?.uid ? 'YOU' : 'OPPONENT'}
+                              </span>
+                              {p.isEliminated && (
+                                <span className="bg-red-500 text-white text-[6px] font-black px-1 rounded uppercase tracking-tighter animate-pulse">
+                                  ELIMINATED
+                                </span>
+                              )}
+                            </div>
                             <span className="text-white font-display text-[12px] tracking-widest">{p.username}</span>
                           </div>
                        </div>
@@ -786,7 +1075,7 @@ export const Battle: React.FC = () => {
                             {String.fromCharCode(64 + idx + 1)}
                           </div>
                           <span className={clsx(
-                            "option-text text-sm",
+                            "option-text",
                             isSelected ? "text-white" : "text-slate-300"
                           )}>{option}</span>
                         </div>
@@ -875,7 +1164,7 @@ export const Battle: React.FC = () => {
                   className="grid grid-cols-2 gap-4 mt-6"
                 >
                   <div className="arena-card p-4 border-white/5 bg-slate-900/40">
-                    <span className="text-[8px] text-slate-600 font-black uppercase tracking-[0.2em] block mb-1">TOTAL BATTLES</span>
+                    <span className="text-[8px] text-slate-600 font-black uppercase tracking-[0.2em] block mb-1">TOTAL DUELS</span>
                     <span className="text-xl font-display text-white">{profile.stats?.totalGames || 0}</span>
                   </div>
                   <div className="arena-card p-4 border-white/5 bg-slate-900/40">
@@ -886,6 +1175,61 @@ export const Battle: React.FC = () => {
                   </div>
                 </motion.div>
               )}
+
+              {/* Failed Questions Drill-down */}
+              <div className="text-left space-y-6 mt-12 pb-10">
+                <div className="flex items-center gap-2">
+                  <div className="h-[1px] flex-1 bg-white/5"></div>
+                  <h4 className="text-[10px] font-bold text-arkumen-gold uppercase tracking-[0.2em] flex items-center gap-2">
+                    <XCircle size={16} className="text-red-500" /> REVELATION DRILL-DOWN
+                  </h4>
+                  <div className="h-[1px] flex-1 bg-white/5"></div>
+                </div>
+                
+                <div className="space-y-4">
+                  {room.questions.map((q, idx) => {
+                    const isCorrect = userAnswers[idx] === q.correctAnswer;
+                    if (isCorrect || userAnswers[idx] === undefined) return null;
+
+                    return (
+                      <div key={idx} className="bg-slate-900/40 rounded-2xl border border-white/5 p-5 space-y-4 relative overflow-hidden transition-all hover:bg-slate-900/60 group">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-red-500/40" />
+                        <div className="flex justify-between items-start gap-4">
+                          <p className="text-sm text-slate-200 font-medium leading-relaxed italic">"{q.text}"</p>
+                          <span className="text-[10px] text-red-500 font-black shrink-0">FAILED</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4 text-[11px]">
+                          <div className="space-y-1">
+                            <span className="text-slate-500 font-bold uppercase tracking-widest">Your Attempt</span>
+                            <p className="text-red-400 font-medium">
+                              {userAnswers[idx] === -1 || userAnswers[idx] === null ? "TIMEOUT" : q.options[userAnswers[idx]!]}
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-slate-500 font-bold uppercase tracking-widest">Correct Truth</span>
+                            <p className="text-green-400 font-medium">{q.options[q.correctAnswer]}</p>
+                          </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-white/5">
+                          <p className="text-xs text-slate-400 leading-relaxed italic opacity-80">
+                            <span className="text-arkumen-gold font-black not-italic mr-2">LOGOS:</span>
+                            {q.explanation}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  
+                  {room.questions.length > 0 && userAnswers.length > 0 && userAnswers.every((ans, idx) => idx >= userAnswers.length || ans === room.questions[idx]?.correctAnswer) && (
+                    <div className="text-center py-10 bg-arkumen-gold/5 rounded-3xl border border-dashed border-arkumen-gold/20">
+                      <Sparkles size={40} className="text-arkumen-gold mx-auto mb-4 animate-pulse" />
+                      <p className="text-arkumen-gold font-luxury italic text-xl">Perfect alignment. All revelations mastered.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
 
               <div className="pt-6">
                 <button

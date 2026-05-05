@@ -111,7 +111,7 @@
   }
 
   .option-text {
-    @apply text-lg font-luxury italic tracking-tight text-left leading-tight;
+    @apply text-[1.4rem] font-luxury italic tracking-tight text-left leading-tight;
   }
 
   .premium-card {

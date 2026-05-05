@@ -14,7 +14,7 @@ export const Home: React.FC = () => {
     { id: 'classic', title: "CLASSIC QUIZ", description: "18 levels of Arkers Elite revelations.", icon: Crown, color: 'text-arkumen-gold' },
     { id: 'blitz', title: "TIMED BLITZ", description: "2 minutes. Prove your mastery.", icon: Play, color: 'text-arkumen-gold' },
     { id: 'path', title: "ARKER'S PATH", description: "One life. Defy the fall.", icon: Sparkles, color: 'text-arkumen-gold' },
-    { id: 'multiplayer', title: "BATTLE", description: "Compete with other Arkers.", icon: Trophy, tag: 'LIVE', color: 'text-arkumen-gold' },
+    { id: 'multiplayer', title: "BATTLEGROUND", description: "Compete with other Arkers.", icon: Trophy, tag: 'LIVE', color: 'text-arkumen-gold' },
   ];
 
   if (loading) {
@@ -93,7 +93,7 @@ export const Home: React.FC = () => {
               transition={{ delay: 0.3 + (i * 0.1) }}
             >
               <Link 
-                to={arena.id === 'multiplayer' ? '/battle' : `/quiz?mode=${arena.id}&difficulty=${difficulty.toLowerCase()}`}
+                to={arena.id === 'multiplayer' ? '/battleground' : `/quiz?mode=${arena.id}&difficulty=${difficulty.toLowerCase()}`}
                 className="group block"
               >
                 <div className="arena-card flex items-center p-6 border-white/5 bg-slate-900/40 backdrop-blur-sm overflow-hidden relative">

@@ -26,7 +26,7 @@ export const Reception: React.FC = () => {
             THE ARKUMEN
           </h1>
           <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.5em]">
-            Digital Sanctuary of Wisdom
+            Elite quiz game
           </p>
         </div>
 
@@ -37,7 +37,7 @@ export const Reception: React.FC = () => {
           className="space-y-6"
         >
           <div className="p-8 py-12 rounded-[2.5rem] bg-slate-900/50 border border-white/5 backdrop-blur-xl flex items-center justify-center min-h-[250px]">
-            <p className="font-luxury text-3xl md:text-4xl text-arkumen-gold/90 leading-tight italic max-w-sm">
+            <p className="font-luxury text-5xl md:text-6xl text-arkumen-gold/90 leading-tight italic max-w-lg">
               "Beloved Arker, welcome to the Arkumen quiz game."
             </p>
           </div>

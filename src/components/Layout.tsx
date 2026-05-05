@@ -18,8 +18,8 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   const isReception = location.pathname === '/';
   const isQuiz = location.pathname === '/quiz';
-  const isBattle = location.pathname === '/battle';
-  const isSpecialMode = isReception || isQuiz || isBattle;
+  const isBattleground = location.pathname === '/battleground';
+  const isSpecialMode = isReception || isQuiz || isBattleground;
 
   return (
     <div className="min-h-screen bg-arkumen-bg text-slate-100 font-sans selection:bg-arkumen-gold/30 overflow-x-hidden">
