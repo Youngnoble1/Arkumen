@@ -14,8 +14,7 @@ import {
   limit, 
   onSnapshot, 
   getDocFromServer,
-  enableIndexedDbPersistence,
-  CACHE_SIZE_UNLIMITED
+  memoryLocalCache,
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -26,30 +25,14 @@ console.log("Initializing Firestore with Database ID:", databaseId || '(default)
 const firestoreSettings = {
   experimentalForceLongPolling: true,
   useFetchStreams: false,
-  host: 'firestore.googleapis.com',
-  ssl: true,
+  localCache: memoryLocalCache(),
 };
 
 export const db = databaseId 
   ? initializeFirestore(app, firestoreSettings, databaseId)
   : initializeFirestore(app, firestoreSettings);
 
-// Persistence is disabled by default in initializeFirestore 
-// and often causes issues in highly restricted iframe environments.
-// We only enable it if specifically requested, but here we'll ensure it doesn't block.
-/*
-try {
-  enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code === 'failed-precondition') {
-      console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
-    } else if (err.code === 'unimplemented') {
-      console.warn('The current browser does not support all of the features required to enable persistence');
-    }
-  });
-} catch (e) {
-  // Persistence might already be enabled via localCache config
-}
-*/
+// Persistence is handled by memoryLocalCache() now to avoid iframe issues.
 
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();

@@ -413,7 +413,7 @@ export const Quiz: React.FC = () => {
             <RotateCcw size={22} /> RETAKE TRIAL
           </button>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/arena')}
             className="btn-primary flex-1 py-5 text-lg"
           >
             <HomeIcon size={22} /> RETURN HOME

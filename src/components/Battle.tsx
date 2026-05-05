@@ -479,7 +479,7 @@ export const Battle: React.FC = () => {
       {/* Cinematic HUD Sync */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-[#020617]/95 backdrop-blur-3xl px-6 py-5 flex items-center justify-between border-b border-white/5 shadow-[0_10px_30px_rgba(0,0,0,0.5)]">
         <div className="flex items-center gap-6">
-          <button onClick={() => navigate('/')} className="hud-circle text-slate-500 hover:text-arkumen-gold transition-all active:scale-90">
+          <button onClick={() => navigate('/arena')} className="hud-circle text-slate-500 hover:text-arkumen-gold transition-all active:scale-90">
             <Home size={20} />
           </button>
           
@@ -860,7 +860,7 @@ export const Battle: React.FC = () => {
 
               <div className="pt-6">
                 <button
-                  onClick={() => navigate('/')}
+                  onClick={() => navigate('/arena')}
                   className="w-full btn-embroidery-primary py-5 text-[11px]"
                 >
                   RETURN TO THE SOURCE

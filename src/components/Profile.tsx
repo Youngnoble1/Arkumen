@@ -9,7 +9,7 @@ import { clsx } from 'clsx';
 import { getXPProgress, RANK_LEVELS } from '../lib/rankings';
 
 export const Profile: React.FC = () => {
-  const { user, profile, loading, isAuthReady, isGuest } = useFirebase();
+  const { user, profile, loading, isAuthReady, isGuest, logout, updateProfile } = useFirebase();
   const navigate = useNavigate();
 
   const [connected, setConnected] = React.useState<boolean | null>(null);
@@ -30,12 +30,9 @@ export const Profile: React.FC = () => {
 
   const handleSignOut = async () => {
     if (isGuest) {
-      if (window.confirm("This will clear your guest progress. Continue?")) {
-        localStorage.removeItem('arkumen_guest_profile');
-        window.location.reload();
-      }
+      navigate('/');
     } else {
-      await signOut(auth);
+      await logout();
       navigate('/');
     }
   };
@@ -52,7 +49,7 @@ export const Profile: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh]">
         <div className="w-12 h-12 border-4 border-arkumen-gold border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-slate-500 font-mono text-sm tracking-widest">ACCESSING THE RECORDS...</p>
+        <p className="text-slate-500 font-mono text-sm tracking-widest uppercase">Syncing Records...</p>
       </div>
     );
   }
@@ -66,6 +63,27 @@ export const Profile: React.FC = () => {
   const currentXPProgress = getXPProgress(profile.xp || 0, profile.level || 1);
   const nextRank = RANK_LEVELS.find(r => r.level === (profile.level || 1) + 1);
 
+  const [isEditingName, setIsEditingName] = React.useState(false);
+  const [newName, setNewName] = React.useState(profile.username);
+  const [isSavingName, setIsSavingName] = React.useState(false);
+
+  const handleUpdateName = async () => {
+    if (!newName.trim() || newName === profile.username) {
+      setIsEditingName(false);
+      return;
+    }
+
+    setIsSavingName(true);
+    try {
+      await updateProfile({ username: newName });
+      setIsEditingName(false);
+    } catch (error) {
+      console.error("Failed to update name", error);
+    } finally {
+      setIsSavingName(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-arkumen-bg pb-20">
       <header className="fixed top-0 left-0 right-0 z-50 bg-[#020617]/95 backdrop-blur-3xl px-6 py-5 flex items-center justify-between border-b border-white/5">
@@ -75,9 +93,12 @@ export const Profile: React.FC = () => {
         </div>
         <button 
           onClick={handleSignOut}
-          className="hud-circle text-slate-500 hover:text-red-500 transition-colors"
+          className="p-2.5 bg-white/5 rounded-xl text-slate-400 hover:text-white transition-all active:scale-95 flex items-center gap-2 px-4 group"
         >
-          <LogOut size={16} />
+          <LogOut size={16} className="group-hover:text-arkumen-gold transition-colors" />
+          <span className="text-[9px] font-black uppercase tracking-widest">
+            {isGuest ? "EXIT AREA" : "LOG OUT"}
+          </span>
         </button>
       </header>
 
@@ -111,7 +132,7 @@ export const Profile: React.FC = () => {
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-4 w-full">
             {/* Level Progress */}
             <div className="w-full space-y-3 pt-6 mb-4">
               <div className="flex justify-between items-end px-2">
@@ -138,8 +159,42 @@ export const Profile: React.FC = () => {
               </div>
             </div>
 
-            <div>
-              <h2 className="text-4xl logo-text mb-1 lowercase">{profile.username}</h2>
+            <div className="flex flex-col items-center gap-1 group">
+              {isEditingName ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    className="bg-slate-900 border border-arkumen-gold/30 rounded-lg px-3 py-1 text-white text-2xl font-luxury outline-none focus:border-arkumen-gold transition-colors"
+                    maxLength={20}
+                    autoFocus
+                  />
+                  <button 
+                    onClick={handleUpdateName}
+                    disabled={isSavingName}
+                    className="p-2 bg-arkumen-gold rounded-lg text-slate-950 disabled:opacity-50"
+                  >
+                    <CheckCircle2 size={20} />
+                  </button>
+                  <button 
+                    onClick={() => { setIsEditingName(false); setNewName(profile.username); }}
+                    className="p-2 bg-slate-800 rounded-lg text-slate-400"
+                  >
+                    <RotateCcw size={20} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <h2 className="text-4xl logo-text mb-1 lowercase">{profile.username}</h2>
+                  <button 
+                    onClick={() => setIsEditingName(true)}
+                    className="p-1.5 text-slate-500 hover:text-arkumen-gold transition-colors opacity-0 group-hover:opacity-100"
+                  >
+                    <Sparkles size={16} />
+                  </button>
+                </div>
+              )}
               <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.4em] opacity-40">IDENTIFIED ELITE NOBLE</p>
             </div>
             

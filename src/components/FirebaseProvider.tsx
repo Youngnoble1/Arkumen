@@ -11,6 +11,7 @@ interface FirebaseContextType {
   isAuthReady: boolean;
   isGuest: boolean;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const FirebaseContext = createContext<FirebaseContextType>({
@@ -20,6 +21,7 @@ const FirebaseContext = createContext<FirebaseContextType>({
   isAuthReady: false,
   isGuest: false,
   updateProfile: async () => {},
+  logout: async () => {},
 });
 
 export const useFirebase = () => useContext(FirebaseContext);
@@ -54,13 +56,33 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isGuest, setIsGuest] = useState(false);
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
-    if (user) {
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, updates);
-    } else if (isGuest && profile) {
+    if (profile?.uid) {
+      // Immediate local update for better UX and offline support
       const newProfile = { ...profile, ...updates };
       setProfile(newProfile);
-      localStorage.setItem(GUEST_PROFILE_KEY, JSON.stringify(newProfile));
+      if (isGuest) {
+        localStorage.setItem(GUEST_PROFILE_KEY, JSON.stringify(newProfile));
+      }
+
+      try {
+        const userRef = doc(db, 'users', profile.uid);
+        await updateDoc(userRef, updates);
+      } catch (error) {
+        // Log sparingly, as this is expected in offline mode
+        console.warn("Profile sync deferred (offline). Local changes preserved.");
+      }
+    }
+  };
+
+  const logout = async () => {
+    if (user) {
+      await auth.signOut();
+    } else {
+      // For guests, we don't clear the record, we just reset or keep it.
+      // The user wants it persisted. So we just navigate home or similar.
+      // Actually, if they want to "logout" as a guest, they might want to sign in as someone else?
+      // But standard logout for guest in this app context usually means "Exit Arena".
+      // I'll leave the local ID intact so they can return.
     }
   };
 
@@ -94,17 +116,56 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
         return () => unsubscribeProfile();
       } else {
-        // Guest Mode
-        const storedGuest = localStorage.getItem(GUEST_PROFILE_KEY);
-        if (storedGuest) {
-          setProfile(JSON.parse(storedGuest));
+        // Guest Mode with Firestore Persistence
+        const storedGuestStr = localStorage.getItem(GUEST_PROFILE_KEY);
+        let guestData: UserProfile;
+
+        if (storedGuestStr) {
+          guestData = JSON.parse(storedGuestStr);
+          setProfile(guestData); // Immediate UI update from local
         } else {
-          const guestProfile = createDefaultProfile('guest_' + Math.random().toString(36).substr(2, 9), 'Guest Arker');
-          setProfile(guestProfile);
-          localStorage.setItem(GUEST_PROFILE_KEY, JSON.stringify(guestProfile));
+          const guestId = 'guest_' + Math.random().toString(36).substr(2, 9);
+          guestData = createDefaultProfile(guestId, 'Guest Arker');
+          localStorage.setItem(GUEST_PROFILE_KEY, JSON.stringify(guestData));
+          setProfile(guestData);
         }
+
+        const guestDocRef = doc(db, 'users', guestData.uid);
         setIsGuest(true);
-        setLoading(false);
+
+        const syncGuest = async () => {
+          try {
+            // Check if exists, if not create
+            const docSnap = await getDoc(guestDocRef);
+            if (!docSnap.exists()) {
+              await setDoc(guestDocRef, guestData);
+            } else {
+              // Merge if Firestore has newer data or just take it
+              const firestoreData = docSnap.data() as UserProfile;
+              setProfile(firestoreData);
+              localStorage.setItem(GUEST_PROFILE_KEY, JSON.stringify(firestoreData));
+            }
+          } catch (error) {
+            console.warn("Guest profile offline sync pending or restricted. Using local version.", error);
+          }
+        };
+
+        syncGuest();
+
+        const unsubscribeGuestProfile = onSnapshot(guestDocRef, (doc) => {
+          if (doc.exists()) {
+            const p = doc.data() as UserProfile;
+            setProfile(p);
+            localStorage.setItem(GUEST_PROFILE_KEY, JSON.stringify(p));
+          }
+          setLoading(false);
+        }, (error) => {
+          // If offline, we just use the local state we already set
+          console.log("Guest profile onSnapshot offline hint", error.message);
+          setLoading(false); 
+        });
+
+        return () => unsubscribeGuestProfile();
       }
     });
 
@@ -117,7 +178,8 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     loading,
     isAuthReady,
     isGuest,
-    updateProfile
+    updateProfile,
+    logout
   }), [user, profile, loading, isAuthReady, isGuest]);
 
   return (
