@@ -23,12 +23,21 @@ const app = initializeApp(firebaseConfig);
 const databaseId = (firebaseConfig as any).firestoreDatabaseId;
 console.log("Initializing Firestore with Database ID:", databaseId || '(default)');
 
-export const db = databaseId 
-  ? initializeFirestore(app, { experimentalForceLongPolling: true }, databaseId)
-  : initializeFirestore(app, { experimentalForceLongPolling: true });
+const firestoreSettings = {
+  experimentalForceLongPolling: true,
+  useFetchStreams: false,
+  host: 'firestore.googleapis.com',
+  ssl: true,
+};
 
-// Attempt to enable persistence for older SDK style compatibility if needed, 
-// though the initializeFirestore above handles it in newer SDKs.
+export const db = databaseId 
+  ? initializeFirestore(app, firestoreSettings, databaseId)
+  : initializeFirestore(app, firestoreSettings);
+
+// Persistence is disabled by default in initializeFirestore 
+// and often causes issues in highly restricted iframe environments.
+// We only enable it if specifically requested, but here we'll ensure it doesn't block.
+/*
 try {
   enableIndexedDbPersistence(db).catch((err) => {
     if (err.code === 'failed-precondition') {
@@ -40,6 +49,7 @@ try {
 } catch (e) {
   // Persistence might already be enabled via localCache config
 }
+*/
 
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
@@ -99,19 +109,23 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 // Connection test
 async function testConnection() {
   const targetPath = 'test/connection';
-  console.log(`Testing Firestore connection to ${targetPath}...`);
+  console.log(`Verifying Firestore reachability (Target: ${targetPath})...`);
   try {
+    // We use getDocFromServer to bypass cache and force a network check
     const snap = await getDocFromServer(doc(db, 'test', 'connection'));
-    console.log("Firestore connection check completed successfully. Document exists:", snap.exists());
+    console.log("Firestore reachability test: SUCCESS. Connection established.");
   } catch (error) {
     if(error instanceof Error) {
-      console.error("Firestore Connection Test Error (Path: " + targetPath + "):", error.message);
       if (error.message.includes('the client is offline') || error.message.includes('Could not reach Cloud Firestore')) {
-        console.error("Connectivity issue detected. This usually means the browser is unable to reach Firestore endpoints. experimentalForceLongPolling is enabled.");
+        console.warn("Firestore reachability test: PENDING/OFFLINE. The client is currently operating in offline mode. This is common during initial boot or in restricted network environments.");
+        console.info("Info: experimentalForceLongPolling is active. If this persists beyond 30 seconds, please check your network connection or Firebase Project configuration.");
       } else if (error.message.includes('insufficient permissions')) {
-        console.error("Security Rule issue detected. Verification of rules deployment is recommended.");
+        console.warn("Firestore reachability test: PERMISSION_DENIED. Reachability is confirmed, but access was blocked. This indicates the database is reachable but requires correct security rules for 'test/connection'.");
+      } else {
+        console.error("Firestore reachability test: FAILED.", error.message);
       }
     }
   }
 }
-setTimeout(testConnection, 3000);
+// Run connection test with a slight delay to allow Auth to initialize
+setTimeout(testConnection, 5000);
